@@ -1,0 +1,6 @@
+{
+  "name": "Clinical Intelligence System",
+  "description": "CallAnalytics AI: A clinical intelligence portal for recording transcription, AI-driven QA alerts, compliance auditing, and dietician training recommendations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

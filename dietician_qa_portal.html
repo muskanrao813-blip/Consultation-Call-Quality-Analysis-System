@@ -1,0 +1,1410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dietician QA Analytics Platform</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #1e293b;
+            min-height: 100vh;
+        }
+
+        /* Navbar */
+        .navbar-premium {
+            background: linear-gradient(135deg, #1e40af 0%, #0f172a 100%);
+            backdrop-filter: blur(10px);
+            padding: 1.2rem 2rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .navbar-brand {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #60a5fa 0%, #93c5fd 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.5px;
+        }
+
+        .navbar-subtitle {
+            font-size: 0.85rem;
+            color: #93c5fd;
+            margin-left: 1rem;
+        }
+
+        /* Container */
+        .container-premium {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2.5rem 1.5rem;
+        }
+
+        /* Tab Navigation */
+        .tab-nav {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 0.5rem;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .tab-nav-btn {
+            padding: 0.75rem 1.5rem;
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-size: 0.95rem;
+        }
+
+        .tab-nav-btn:hover {
+            color: #60a5fa;
+            background: rgba(96, 165, 250, 0.1);
+        }
+
+        .tab-nav-btn.active {
+            background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        }
+
+        /* Tab Content */
+        .tab-content-panel {
+            display: none;
+            animation: fadeIn 0.4s ease-in;
+        }
+
+        .tab-content-panel.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Cards */
+        .card-premium {
+            background: white;
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            transition: all 0.3s ease;
+        }
+
+        .card-premium:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+        }
+
+        /* KPI Tiles */
+        .kpi-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.8rem;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            transition: all 0.3s ease;
+            border: 1px solid #f0f4f8;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .kpi-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin: 0.5rem 0;
+        }
+
+        .kpi-label {
+            font-size: 0.9rem;
+            color: #64748b;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Drag & Drop */
+        .dropzone {
+            border: 2px dashed #3b82f6;
+            border-radius: 12px;
+            padding: 3rem;
+            text-align: center;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(30, 64, 175, 0.05) 100%);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .dropzone:hover {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(30, 64, 175, 0.1) 100%);
+            border-color: #1e40af;
+        }
+
+        .dropzone.dragover {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(30, 64, 175, 0.15) 100%);
+            border-color: #1e40af;
+            transform: scale(1.02);
+        }
+
+        .dropzone-text {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 0.5rem;
+        }
+
+        .dropzone-subtext {
+            font-size: 0.9rem;
+            color: #64748b;
+        }
+
+        /* Progress Bar */
+        .progress-bar-premium {
+            background: linear-gradient(90deg, #3b82f6 0%, #1e40af 100%);
+            height: 8px;
+            border-radius: 4px;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        }
+
+        /* Scorecard Detail */
+        .scorecard-section {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        }
+
+        .scorecard-section-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 3px solid #3b82f6;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+        }
+
+        .scorecard-section-title i {
+            font-size: 1.5rem;
+            color: #3b82f6;
+        }
+
+        /* Score Circle */
+        .score-circle {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            font-weight: 700;
+            color: white;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+            margin: 0 auto 1rem;
+        }
+
+        .score-circle.excellent {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+
+        .score-circle.good {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        }
+
+        .score-circle.poor {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        }
+
+        .score-value {
+            font-size: 2.5rem;
+            line-height: 1;
+        }
+
+        .score-max {
+            font-size: 0.8rem;
+            opacity: 0.9;
+        }
+
+        /* Dimension Cards */
+        .dimension-item {
+            background: #f8fafc;
+            border-left: 4px solid #3b82f6;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .dimension-item:hover {
+            background: #f0f4f8;
+            border-left-color: #1e40af;
+        }
+
+        .dimension-name {
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 0.8rem;
+            font-size: 1rem;
+        }
+
+        .dimension-score-bar {
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+
+        .dimension-score-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6 0%, #1e40af 100%);
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+
+        .dimension-score-fill.high {
+            background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+        }
+
+        .dimension-score-fill.medium {
+            background: linear-gradient(90deg, #f59e0b 0%, #d97706 100%);
+        }
+
+        .dimension-score-fill.low {
+            background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%);
+        }
+
+        .dimension-score-value {
+            font-weight: 700;
+            color: #1e293b;
+            font-size: 0.9rem;
+        }
+
+        /* Flag Badges */
+        .flag-badge {
+            display: inline-block;
+            padding: 0.6rem 1rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            margin-right: 0.5rem;
+        }
+
+        .flag-triggered {
+            background: #fee2e2;
+            color: #7f1d1d;
+            border: 1px solid #fecaca;
+        }
+
+        .flag-clear {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+
+        /* Coaching Panel */
+        .coaching-box {
+            background: linear-gradient(135deg, #fef3c7 0%, #fef08a 100%);
+            border-left: 4px solid #f59e0b;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .coaching-box.warning {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            border-left-color: #ef4444;
+        }
+
+        .coaching-box.success {
+            background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+            border-left-color: #10b981;
+        }
+
+        .coaching-title {
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 0.8rem;
+            font-size: 1rem;
+        }
+
+        .coaching-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .coaching-list li {
+            padding: 0.6rem 0;
+            color: #475569;
+            font-size: 0.95rem;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        .coaching-list li:last-child {
+            border-bottom: none;
+        }
+
+        .coaching-list li:before {
+            content: "→ ";
+            color: #3b82f6;
+            font-weight: 700;
+            margin-right: 0.5rem;
+        }
+
+        /* Transcript */
+        .transcript-container {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 1rem;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .transcript-line {
+            display: flex;
+            margin-bottom: 1rem;
+            padding: 0.8rem;
+            border-radius: 6px;
+            background: white;
+            border-left: 3px solid #3b82f6;
+        }
+
+        .transcript-line.speaker-1 {
+            border-left-color: #8b5cf6;
+        }
+
+        .transcript-speaker {
+            font-weight: 700;
+            margin-bottom: 0.3rem;
+            color: #1e293b;
+            font-size: 0.9rem;
+        }
+
+        .transcript-time {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin-left: 0.5rem;
+        }
+
+        .transcript-text {
+            color: #475569;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        /* Calls Table */
+        .table-premium {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        .table-premium thead {
+            background: #f0f4f8;
+        }
+
+        .table-premium th {
+            padding: 1rem;
+            text-align: left;
+            font-weight: 700;
+            color: #475569;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .table-premium td {
+            padding: 1rem;
+            border-bottom: 1px solid #e2e8f0;
+            color: #475569;
+        }
+
+        .table-premium tbody tr {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .table-premium tbody tr:hover {
+            background: #f8fafc;
+            transform: translateX(2px);
+        }
+
+        /* Badge */
+        .badge-premium {
+            padding: 0.5rem 0.9rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            display: inline-block;
+        }
+
+        .badge-excellent {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .badge-good {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .badge-poor {
+            background: #fee2e2;
+            color: #7f1d1d;
+        }
+
+        .badge-processing {
+            background: #dbeafe;
+            color: #0c4a6e;
+        }
+
+        /* Buttons */
+        .btn-premium {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.95rem;
+        }
+
+        .btn-primary-premium {
+            background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        }
+
+        .btn-primary-premium:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(59, 130, 246, 0.4);
+        }
+
+        /* Alerts */
+        .alert-premium {
+            border: none;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .alert-info-premium {
+            background: #dbeafe;
+            color: #0c4a6e;
+            border-left: 4px solid #3b82f6;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f0f4f8;
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* Close button */
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: #94a3b8;
+            cursor: pointer;
+            transition: color 0.3s ease;
+        }
+
+        .close-btn:hover {
+            color: #ef4444;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar-premium">
+        <div style="display: flex; align-items: center;">
+            <i class="fas fa-stethoscope" style="color: #60a5fa; font-size: 1.8rem; margin-right: 0.8rem;"></i>
+            <div>
+                <div class="navbar-brand">Dietician QA Analytics</div>
+                <div class="navbar-subtitle">Intelligent Call Quality & Performance Analytics</div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <div class="container-premium">
+        <!-- Tab Navigation -->
+        <div class="tab-nav">
+            <button class="tab-nav-btn active" onclick="switchTab(event, 'upload')">
+                <i class="fas fa-cloud-upload-alt"></i> Upload
+            </button>
+            <button class="tab-nav-btn" onclick="switchTab(event, 'scorecard')">
+                <i class="fas fa-chart-bar"></i> Scorecard
+            </button>
+            <button class="tab-nav-btn" onclick="switchTab(event, 'dashboard')">
+                <i class="fas fa-tachometer-alt"></i> Dashboard
+            </button>
+        </div>
+
+        <!-- TAB 1: UPLOAD -->
+        <div id="upload-tab" class="tab-content-panel active">
+            <div class="scorecard-section">
+                <div class="scorecard-section-title">
+                    <i class="fas fa-cloud-upload-alt"></i> Upload Clinical Audio or Bulk Records
+                </div>
+                <p style="color: #64748b; margin-bottom: 2rem;">Upload a single audio consultation for immediate transcription and QA scoring, or use a bulk Excel file with call metadata and recording URLs.</p>
+
+                <div id="uploadFeedback" style="display:none; margin-bottom: 1rem; padding: 0.9rem 1rem; border-radius: 8px; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;"></div>
+
+                <div class="dropzone" id="dragDropZone" style="margin-bottom: 1.5rem;">
+                    <div style="margin-bottom: 1rem;">
+                        <i class="fas fa-microphone" style="font-size: 3rem; color: #3b82f6;"></i>
+                    </div>
+                    <div class="dropzone-text">Drag and drop your audio file here</div>
+                    <div class="dropzone-subtext">MP3, WAV, FLAC, M4A, OGG, or WEBM</div>
+                    <input type="file" id="fileInput" style="display:none;" accept=".mp3,.wav,.flac,.m4a,.ogg,.webm">
+                    <button class="btn-premium btn-primary-premium mt-3" onclick="document.getElementById('fileInput').click()" style="cursor: pointer;">
+                        <i class="fas fa-folder-open"></i> Choose Audio File
+                    </button>
+                </div>
+
+                <div class="scorecard-section" style="padding: 1.2rem; margin-top: 1rem;">
+                    <div class="scorecard-section-title" style="font-size: 1rem; margin-bottom: 0.8rem;">
+                        <i class="fas fa-file-excel"></i> Bulk Excel Upload
+                    </div>
+                    <div class="dropzone" id="excelDropZone">
+                        <div style="margin-bottom: 0.8rem;">
+                            <i class="fas fa-file-excel" style="font-size: 2rem; color: #16a34a;"></i>
+                        </div>
+                        <div class="dropzone-text">Drag and drop your Excel file here</div>
+                        <div class="dropzone-subtext">or click to browse your computer</div>
+                        <input type="file" id="excelFileInput" style="display:none;" accept=".xlsx,.xls,.csv">
+                        <button class="btn-premium mt-3" onclick="document.getElementById('excelFileInput').click()" style="cursor: pointer; background: transparent; border: 1px solid #16a34a; color: #16a34a;">
+                            <i class="fas fa-folder-open"></i> Choose Excel File
+                        </button>
+                    </div>
+                    <div style="text-align: center; margin-top: 1rem;">
+                        <button class="btn-premium" style="background: transparent; border: 1px solid #3b82f6; color: #3b82f6;" onclick="downloadTemplate()">
+                            <i class="fas fa-download"></i> Download Excel Template
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Validation Report -->
+            <div id="validationReport" style="display:none;" class="scorecard-section">
+                <div class="scorecard-section-title">
+                    <i class="fas fa-check-circle"></i> Validation Report
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                    <div style="background: #f0fdf4; padding: 1.5rem; border-radius: 8px; border-left: 4px solid #10b981;">
+                        <div style="font-size: 1.8rem; font-weight: 700; color: #166534;"><span id="validCount">0</span></div>
+                        <div style="color: #475569; font-size: 0.9rem; margin-top: 0.5rem;">Valid Records</div>
+                    </div>
+                    <div style="background: #fef2f2; padding: 1.5rem; border-radius: 8px; border-left: 4px solid #ef4444;">
+                        <div style="font-size: 1.8rem; font-weight: 700; color: #7f1d1d;"><span id="invalidCount">0</span></div>
+                        <div style="color: #475569; font-size: 0.9rem; margin-top: 0.5rem;">Invalid Records</div>
+                    </div>
+                </div>
+                <div id="errorDetails" style="background: #fee2e2; padding: 1rem; border-radius: 8px; border-left: 4px solid #ef4444; color: #7f1d1d; font-size: 0.9rem;"></div>
+            </div>
+
+            <!-- Batch Progress -->
+            <div id="batchProgress" style="display:none;" class="scorecard-section">
+                <div class="scorecard-section-title">
+                    <i class="fas fa-spinner"></i> Processing Progress
+                </div>
+
+                <div style="margin-bottom: 2rem;">
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
+                        <div style="background: #f0fdf4; padding: 1.5rem; border-radius: 8px; text-align: center; border-top: 3px solid #10b981;">
+                            <div style="font-size: 1.8rem; font-weight: 700; color: #166534;"><span id="completedCount">0</span></div>
+                            <div style="color: #475569; font-size: 0.9rem; margin-top: 0.5rem;">Completed</div>
+                        </div>
+                        <div style="background: #dbeafe; padding: 1.5rem; border-radius: 8px; text-align: center; border-top: 3px solid #3b82f6;">
+                            <div style="font-size: 1.8rem; font-weight: 700; color: #0c4a6e;"><span id="processingCount">0</span></div>
+                            <div style="color: #475569; font-size: 0.9rem; margin-top: 0.5rem;">Processing</div>
+                        </div>
+                        <div style="background: #f3e8ff; padding: 1.5rem; border-radius: 8px; text-align: center; border-top: 3px solid #a855f7;">
+                            <div style="font-size: 1.8rem; font-weight: 700; color: #581c87;"><span id="pendingCount">0</span></div>
+                            <div style="color: #475569; font-size: 0.9rem; margin-top: 0.5rem;">Pending</div>
+                        </div>
+                        <div style="background: #fef2f2; padding: 1.5rem; border-radius: 8px; text-align: center; border-top: 3px solid #ef4444;">
+                            <div style="font-size: 1.8rem; font-weight: 700; color: #7f1d1d;"><span id="failedCount">0</span></div>
+                            <div style="color: #475569; font-size: 0.9rem; margin-top: 0.5rem;">Failed</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <span style="font-weight: 600; color: #1e293b;">Overall Progress</span>
+                        <span style="font-weight: 700; color: #3b82f6;"><span id="progressPercent">0</span>%</span>
+                    </div>
+                    <div style="width: 100%; height: 12px; background: #e2e8f0; border-radius: 6px; overflow: hidden;">
+                        <div class="progress-bar-premium" id="progressBar" style="width: 0%; height: 100%;"></div>
+                    </div>
+                </div>
+
+                <p id="statusText" style="color: #64748b; text-align: center; font-size: 0.95rem; margin-bottom: 1.5rem;">Initializing...</p>
+
+                <div style="max-height: 600px; overflow-y: auto;">
+                    <table class="table-premium">
+                        <thead>
+                            <tr>
+                                <th>Dietician</th>
+                                <th>Appointment</th>
+                                <th>Current Step</th>
+                                <th>Status</th>
+                                <th>Score</th>
+                            </tr>
+                        </thead>
+                        <tbody id="batchCallsList"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: SCORECARD -->
+        <div id="scorecard-tab" class="tab-content-panel">
+            <!-- Filters -->
+            <div class="scorecard-section">
+                <div class="scorecard-section-title">
+                    <i class="fas fa-filter"></i> Filter Calls
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                    <input type="text" id="dieticianFilter" class="form-control" placeholder="Dietician name" style="border-radius: 8px; border: 1px solid #e2e8f0; padding: 0.75rem;">
+                    <input type="date" id="dateFromFilter" class="form-control" style="border-radius: 8px; border: 1px solid #e2e8f0; padding: 0.75rem;">
+                    <input type="date" id="dateToFilter" class="form-control" style="border-radius: 8px; border: 1px solid #e2e8f0; padding: 0.75rem;">
+                    <button class="btn-premium btn-primary-premium" onclick="loadScorecardCalls()" style="cursor: pointer;">
+                        <i class="fas fa-search"></i> Filter
+                    </button>
+                </div>
+            </div>
+
+            <!-- Calls List -->
+            <div class="scorecard-section">
+                <div class="scorecard-section-title">
+                    <i class="fas fa-list"></i> All Calls
+                </div>
+                <table class="table-premium">
+                    <thead>
+                        <tr>
+                            <th>Dietician</th>
+                            <th>Patient</th>
+                            <th>Date</th>
+                            <th>Duration</th>
+                            <th>Score</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="callsList"></tbody>
+                </table>
+            </div>
+
+            <!-- Scorecard Detail -->
+            <div id="scorecardDetail" style="display:none;">
+                <button class="close-btn" onclick="document.getElementById('scorecardDetail').style.display='none'; document.getElementById('callsList').parentElement.scrollIntoView();" style="float: right; margin-bottom: 1rem;">
+                    <i class="fas fa-times"></i>
+                </button>
+
+                <!-- Call Summary -->
+                <div class="scorecard-section">
+                    <div class="scorecard-section-title">
+                        <i class="fas fa-phone"></i> Call Recording Summary
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1.5rem;">
+                        <div class="kpi-card">
+                            <div style="font-size: 1.2rem; color: #3b82f6; margin-bottom: 0.5rem;">👨‍⚕️</div>
+                            <div style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem;">Dietician</div>
+                            <div id="sc-dietician" style="font-weight: 700; color: #1e293b;"></div>
+                        </div>
+                        <div class="kpi-card">
+                            <div style="font-size: 1.2rem; color: #3b82f6; margin-bottom: 0.5rem;">👤</div>
+                            <div style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem;">Patient</div>
+                            <div id="sc-patient" style="font-weight: 700; color: #1e293b;"></div>
+                        </div>
+                        <div class="kpi-card">
+                            <div style="font-size: 1.2rem; color: #3b82f6; margin-bottom: 0.5rem;">📅</div>
+                            <div style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem;">Call Date</div>
+                            <div id="sc-date" style="font-weight: 700; color: #1e293b;"></div>
+                        </div>
+                        <div class="kpi-card">
+                            <div style="font-size: 1.2rem; color: #3b82f6; margin-bottom: 0.5rem;">⏱️</div>
+                            <div style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem;">Duration</div>
+                            <div id="sc-duration" style="font-weight: 700; color: #1e293b;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cumulative Score -->
+                <div class="scorecard-section">
+                    <div class="scorecard-section-title">
+                        <i class="fas fa-star"></i> Cumulative Score
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 2rem; align-items: center;">
+                        <div style="text-align: center;">
+                            <div class="score-circle" id="scoreCircle">
+                                <div class="score-value" id="sc-overall-score">0</div>
+                                <div class="score-max">/10</div>
+                            </div>
+                        </div>
+                        <div>
+                            <div id="sc-status" style="font-size: 1.1rem; font-weight: 700; color: #1e293b; margin-bottom: 0.5rem;"></div>
+                            <div id="sc-status-detail" style="color: #64748b; font-size: 0.95rem; line-height: 1.6;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dimension Scores -->
+                <div class="scorecard-section">
+                    <div class="scorecard-section-title">
+                        <i class="fas fa-chart-line"></i> Score Against Each Factor
+                    </div>
+                    <div id="dimensionScores"></div>
+                </div>
+
+                <!-- QA Flags -->
+                <div class="scorecard-section">
+                    <div class="scorecard-section-title">
+                        <i class="fas fa-exclamation-triangle"></i> QA Flags & SOP Violations
+                    </div>
+                    <div id="qaFlags"></div>
+                </div>
+
+                <!-- Coaching -->
+                <div class="scorecard-section">
+                    <div class="scorecard-section-title">
+                        <i class="fas fa-lightbulb"></i> Coaching & Retraining Recommendations
+                    </div>
+                    <div id="feedbackBullets"></div>
+                </div>
+
+                <!-- Transcript -->
+                <div class="scorecard-section">
+                    <div class="scorecard-section-title" onclick="toggleTranscript()" style="cursor: pointer;">
+                        <i class="fas fa-comments"></i> Full Transcript
+                        <span style="margin-left: auto; color: #94a3b8; font-size: 0.9rem;">(Click to expand)</span>
+                    </div>
+                    <div id="transcript" style="display:none;" class="transcript-container"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: DASHBOARD -->
+        <div id="dashboard-tab" class="tab-content-panel">
+            <div class="scorecard-section">
+                <div class="scorecard-section-title">
+                    <i class="fas fa-user"></i> Select Dietician
+                </div>
+                <select id="dieticianSelect" class="form-control" style="border-radius: 8px; border: 1px solid #e2e8f0; padding: 0.75rem; font-size: 0.95rem;" onchange="loadDieticianSummary()">
+                    <option value="">-- Choose a dietician --</option>
+                </select>
+            </div>
+
+            <div id="dashboardContent" style="display:none;">
+                <!-- KPI Tiles -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+                    <div class="kpi-card">
+                        <div style="font-size: 1.2rem; color: #3b82f6; margin-bottom: 0.5rem;">📞</div>
+                        <div class="kpi-value" id="kpi-total">0</div>
+                        <div class="kpi-label">Total Calls Analyzed</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div style="font-size: 1.2rem; color: #3b82f6; margin-bottom: 0.5rem;">⭐</div>
+                        <div class="kpi-value" id="kpi-avg">0.0</div>
+                        <div class="kpi-label">Average Score</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div style="font-size: 1.2rem; color: #3b82f6; margin-bottom: 0.5rem;">🏆</div>
+                        <div class="kpi-value" id="kpi-rank">1</div>
+                        <div class="kpi-label">Peer Rank</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div style="font-size: 1.2rem; color: #3b82f6; margin-bottom: 0.5rem;">👥</div>
+                        <div class="kpi-value" id="kpi-team-avg">0.0</div>
+                        <div class="kpi-label">Team Average</div>
+                    </div>
+                </div>
+
+                <!-- Charts -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+                    <div class="scorecard-section" style="padding: 1.5rem;">
+                        <div class="scorecard-section-title">
+                            <i class="fas fa-chart-area"></i> Performance Trend
+                        </div>
+                        <canvas id="trendChart" style="max-height: 300px;"></canvas>
+                    </div>
+                    <div class="scorecard-section" style="padding: 1.5rem;">
+                        <div class="scorecard-section-title">
+                            <i class="fas fa-radar"></i> Dimension Breakdown
+                        </div>
+                        <canvas id="radarChart" style="max-height: 300px;"></canvas>
+                    </div>
+                </div>
+
+                <!-- Coaching Pointers -->
+                <div class="scorecard-section">
+                    <div class="scorecard-section-title">
+                        <i class="fas fa-graduation-cap"></i> Coaching Pointers
+                    </div>
+                    <ul id="coachingPointers" class="coaching-list"></ul>
+                </div>
+
+                <!-- Flags Summary -->
+                <div class="scorecard-section">
+                    <div class="scorecard-section-title">
+                        <i class="fas fa-flag"></i> QA Flags Summary
+                    </div>
+                    <table class="table-premium">
+                        <thead>
+                            <tr>
+                                <th>Flag Type</th>
+                                <th>Occurrences</th>
+                                <th>% of Calls</th>
+                            </tr>
+                        </thead>
+                        <tbody id="flagsTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const getApiBase = () => {
+            const protocol = window.location.protocol;
+            const host = window.location.hostname;
+            const port = window.location.port;
+
+            if (port === '3001') {
+                return `${protocol}//${host}:3001/api`;
+            }
+
+            return `${protocol}//${host}:3000/api`;
+        };
+
+        const API_BASE = getApiBase();
+        let currentBatchId = null;
+        let batchPollInterval = null;
+        let trendChartInstance = null;
+        let radarChartInstance = null;
+
+        function switchTab(e, tabName) {
+            e?.target.closest('.tab-nav-btn')?.parentElement.querySelectorAll('.tab-nav-btn').forEach(btn => btn.classList.remove('active'));
+            e?.target.closest('.tab-nav-btn')?.classList.add('active');
+            document.querySelectorAll('.tab-content-panel').forEach(panel => panel.classList.remove('active'));
+            document.getElementById(tabName + '-tab').classList.add('active');
+            if (tabName === 'scorecard') loadScorecardCalls();
+            if (tabName === 'dashboard') loadDieticianList();
+        }
+
+        // Drag & Drop
+        const dragDropZone = document.getElementById('dragDropZone');
+        const fileInput = document.getElementById('fileInput');
+        const excelDropZone = document.getElementById('excelDropZone');
+        const excelFileInput = document.getElementById('excelFileInput');
+        const uploadFeedback = document.getElementById('uploadFeedback');
+
+        const showUploadFeedback = (message, isError = false) => {
+            uploadFeedback.style.display = 'block';
+            uploadFeedback.textContent = message;
+            uploadFeedback.style.background = isError ? '#fef2f2' : '#eff6ff';
+            uploadFeedback.style.color = isError ? '#b91c1c' : '#1d4ed8';
+            uploadFeedback.style.borderColor = isError ? '#fecaca' : '#bfdbfe';
+        };
+
+        dragDropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dragDropZone.classList.add('dragover');
+        });
+
+        dragDropZone.addEventListener('dragleave', () => dragDropZone.classList.remove('dragover'));
+
+        dragDropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dragDropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                uploadAudioFile();
+            }
+        });
+
+        dragDropZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', uploadAudioFile);
+
+        excelDropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            excelDropZone.classList.add('dragover');
+        });
+
+        excelDropZone.addEventListener('dragleave', () => excelDropZone.classList.remove('dragover'));
+
+        excelDropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            excelDropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                excelFileInput.files = e.dataTransfer.files;
+                uploadExcelFile();
+            }
+        });
+
+        excelDropZone.addEventListener('click', () => excelFileInput.click());
+        excelFileInput.addEventListener('change', uploadExcelFile);
+
+        async function uploadAudioFile() {
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                showUploadFeedback(`Uploading ${file.name}...`);
+                const response = await fetch(API_BASE + '/calls/audio-upload', { method: 'POST', body: formData });
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || JSON.stringify(error));
+                }
+
+                const result = await response.json();
+                showUploadFeedback(`Audio upload accepted. Call queued with ID ${result.call_id}`);
+            } catch (error) {
+                showUploadFeedback('Audio upload failed: ' + (error.message || 'Unknown error'), true);
+            }
+        }
+
+        async function uploadExcelFile() {
+            const file = excelFileInput.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                showUploadFeedback(`Uploading Excel file ${file.name}...`);
+                const response = await fetch(API_BASE + '/calls/bulk-upload', { method: 'POST', body: formData });
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || JSON.stringify(error));
+                }
+
+                const report = await response.json();
+                currentBatchId = report.batch_id;
+
+                document.getElementById('validCount').textContent = report.valid_rows;
+                document.getElementById('invalidCount').textContent = report.invalid_rows;
+
+                if (report.invalid_rows > 0 && report.rows) {
+                    const errorHTML = report.rows.filter(r => r.status !== 'valid').map(r => `Row ${r.row_num}: ${r.reason}`).join('<br>');
+                    document.getElementById('errorDetails').innerHTML = errorHTML || 'See details above';
+                }
+
+                document.getElementById('validationReport').style.display = 'block';
+
+                if (report.valid_rows > 0) {
+                    document.getElementById('batchProgress').style.display = 'block';
+                    startBatchPolling();
+                }
+
+                showUploadFeedback(`Excel upload accepted. ${report.valid_rows} rows queued for processing.`);
+            } catch (error) {
+                showUploadFeedback('Excel upload failed: ' + (error.message || 'Unknown error'), true);
+            }
+        }
+
+        function startBatchPolling() {
+            if (batchPollInterval) clearInterval(batchPollInterval);
+            batchPollInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(API_BASE + '/batches/' + currentBatchId + '/progress');
+                    if (!response.ok) return;
+
+                    const progress = await response.json();
+                    const pct = progress.pct_complete;
+
+                    document.getElementById('progressBar').style.width = pct + '%';
+                    document.getElementById('progressPercent').textContent = pct;
+                    document.getElementById('completedCount').textContent = progress.completed;
+                    document.getElementById('processingCount').textContent = progress.processing;
+                    document.getElementById('pendingCount').textContent = progress.pending;
+                    document.getElementById('failedCount').textContent = progress.failed;
+                    document.getElementById('statusText').textContent = progress.status_text;
+
+                    const tbody = document.getElementById('batchCallsList');
+                    tbody.innerHTML = progress.calls.map(call => {
+                        const statusBadgeClass = call.status === 'completed' ? 'badge-excellent' : call.status === 'failed' ? 'badge-poor' : call.status === 'processing' ? 'badge-processing' : 'badge-good';
+                        const stepIcon = ['', '📋', '🎤', '📊', '🤖', '🔍', '✅'][call.step_number] || '⏳';
+                        return `
+                            <tr>
+                                <td>${call.dietician_name || '-'}</td>
+                                <td><code style="background: #f0f4f8; padding: 0.3rem 0.6rem; border-radius: 4px;">${call.appointment_id || '-'}</code></td>
+                                <td><small>${stepIcon} ${call.current_step}</small></td>
+                                <td><span class="badge-premium ${statusBadgeClass}">${call.status}</span></td>
+                                <td><strong>${call.overall_score ? call.overall_score.toFixed(1) : '-'}</strong></td>
+                            </tr>
+                        `;
+                    }).join('');
+
+                    if (pct === 100) {
+                        clearInterval(batchPollInterval);
+                        document.getElementById('statusText').innerHTML = '<span style="color: #10b981; font-weight: 700;">✅ All calls processed!</span>';
+                    }
+                } catch (e) {
+                    console.error('Polling error:', e);
+                }
+            }, 3000);
+        }
+
+        async function downloadTemplate() {
+            const link = document.createElement('a');
+            link.href = API_BASE + '/template';
+            link.click();
+        }
+
+        // Scorecard
+        async function loadScorecardCalls() {
+            try {
+                const response = await fetch(API_BASE + '/calls');
+                if (!response.ok) return;
+
+                const calls = await response.json();
+                const tbody = document.getElementById('callsList');
+
+                tbody.innerHTML = calls.map(call => {
+                    const score = call.overall_weighted_score || 0;
+                    const badgeClass = score < 4 ? 'badge-poor' : score < 6 ? 'badge-good' : 'badge-excellent';
+                    const dateStr = new Date(call.call_datetime).toLocaleDateString();
+                    const durationMin = Math.round((call.call_duration_seconds || 0) / 60);
+
+                    return `
+                        <tr onclick="loadScorecardDetail('${call.id}')">
+                            <td><strong>${call.dietician_name}</strong></td>
+                            <td>${call.patient_name || '-'}</td>
+                            <td>${dateStr}</td>
+                            <td>${durationMin}m</td>
+                            <td><span class="badge-premium ${badgeClass}">${score.toFixed(1)}/10</span></td>
+                            <td><span class="badge-premium badge-processing">${call.status}</span></td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Error loading calls:', error);
+            }
+        }
+
+        async function loadScorecardDetail(callId) {
+            try {
+                const response = await fetch(API_BASE + '/calls/' + callId);
+                if (!response.ok) return;
+
+                const callDetail = await response.json();
+                displayScorecardDetail(callDetail);
+            } catch (error) {
+                console.error('Error loading call detail:', error);
+            }
+        }
+
+        function displayScorecardDetail(call) {
+            document.getElementById('scorecardDetail').style.display = 'block';
+
+            const dietician = call.dietician_name || 'Unknown';
+            const patient = call.patient_name || 'Not specified';
+            const dateStr = new Date(call.call_datetime).toLocaleDateString();
+            const durationMin = Math.round((call.call_duration_seconds || 0) / 60);
+
+            document.getElementById('sc-dietician').textContent = dietician;
+            document.getElementById('sc-patient').textContent = patient;
+            document.getElementById('sc-date').textContent = dateStr;
+            document.getElementById('sc-duration').textContent = durationMin + ' min';
+
+            const overallScore = call.overall_weighted_score || 0;
+            const scoreCircle = document.getElementById('scoreCircle');
+            scoreCircle.className = 'score-circle ' + (overallScore < 4 ? 'poor' : overallScore < 6 ? 'good' : 'excellent');
+            document.getElementById('sc-overall-score').textContent = overallScore.toFixed(1);
+
+            const statusText = overallScore < 4 ? '❌ Poor Performance' : overallScore < 6 ? '⚠️ Needs Improvement' : '✅ Good Performance';
+            document.getElementById('sc-status').textContent = statusText;
+
+            const statusDetail = overallScore < 4 ? 'Immediate action and retraining required to meet quality standards' :
+                                  overallScore < 6 ? 'Targeted coaching and improvement plan needed' :
+                                  'Meets or exceeds quality standards';
+            document.getElementById('sc-status-detail').textContent = statusDetail;
+
+            const dimDiv = document.getElementById('dimensionScores');
+            const dimNames = {
+                'discovery_assessment': 'Discovery & Assessment (20%)',
+                'empathy_communication': 'Empathy & Communication (20%)',
+                'rushed_forced_detection': 'Consultation Flow (15%)',
+                'adherence_counselling': 'Adherence Counselling (20%)',
+                'consultation_completeness': 'Consultation Completeness (25%)',
+                'clinical_safety': 'Clinical Safety (Gate)'
+            };
+
+            dimDiv.innerHTML = Object.entries(call.rubric_scores || {}).map(([dim, data]) => {
+                const score = data.score || 0;
+                const dimName = dimNames[dim] || dim;
+                const fillClass = score < 4 ? 'low' : score < 6 ? 'medium' : 'high';
+
+                const evidenceHTML = (data.evidence || []).map((ev, i) => `
+                    <div style="font-size: 0.85rem; color: #64748b; margin-top: 0.5rem;">
+                        💡 <em>"${ev.quote}"</em> <span style="color: #94a3b8;">[${ev.timestamp_s}s]</span>
+                    </div>
+                `).join('');
+
+                const criteriaHTML = Object.entries(data.sub_criteria || {}).map(([criterion, met]) => {
+                    if (criterion === 'sentiment') return `<span style="font-size: 0.85rem; display: block; margin-top: 0.3rem;">💬 Sentiment: <strong>${met}</strong></span>`;
+                    const icon = met ? '✅' : '❌';
+                    return `<span style="font-size: 0.85rem; display: block; margin-top: 0.3rem;">${icon} ${criterion.replace(/_/g, ' ')}</span>`;
+                }).join('');
+
+                return `
+                    <div class="dimension-item">
+                        <div class="dimension-name">${dimName}</div>
+                        <div class="dimension-score-bar">
+                            <div class="dimension-score-fill ${fillClass}" style="width: ${(score / 10) * 100}%;"></div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+                            <div>
+                                <div style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem;"><strong>Evidence:</strong></div>
+                                ${evidenceHTML}
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem;"><strong>Criteria:</strong></div>
+                                ${criteriaHTML}
+                            </div>
+                        </div>
+                        <div style="text-align: right;"><span class="dimension-score-value">${score.toFixed(1)}/10</span></div>
+                    </div>
+                `;
+            }).join('');
+
+            const flagDiv = document.getElementById('qaFlags');
+            const flagsHTML = Object.entries(call.qa_flags || {}).map(([flagType, data]) => {
+                const flagClass = data.triggered ? 'flag-triggered' : 'flag-clear';
+                const icon = data.triggered ? '🚩' : '✅';
+                return `
+                    <div>
+                        <span class="flag-badge ${flagClass}">${icon} ${flagType}</span>
+                        ${data.triggered && data.detail ? `<small style="display: block; color: #64748b; margin-top: 0.3rem;">${data.detail}</small>` : ''}
+                    </div>
+                `;
+            }).join('');
+
+            const triggeredFlags = Object.entries(call.qa_flags || {}).filter(([_, data]) => data.triggered).length;
+            const flagSummary = triggeredFlags > 0 ?
+                `<div class="coaching-box warning"><div class="coaching-title">⚠️ ${triggeredFlags} SOP Violation(s) Detected</div></div>` :
+                '<div class="coaching-box success"><div class="coaching-title">✅ No SOP Violations Detected</div></div>';
+
+            flagDiv.innerHTML = flagSummary + flagsHTML;
+
+            const feedbackDiv = document.getElementById('feedbackBullets');
+            const bullets = call.feedback_notes?.bullets || [];
+            const retrainingNeeded = call.feedback_notes?.retraining_recommended;
+
+            const retrainingBox = retrainingNeeded ?
+                `<div class="coaching-box warning"><div class="coaching-title">🎓 Retraining Required</div><p style="color: #475569; margin: 0;">This dietician requires targeted retraining on consultation quality and best practices.</p></div>` : '';
+
+            feedbackDiv.innerHTML = retrainingBox + `
+                <div class="coaching-box">
+                    <div class="coaching-title">📋 Key Areas for Improvement</div>
+                    <ul class="coaching-list">
+                        ${bullets.map(b => `<li>${b}</li>`).join('')}
+                    </ul>
+                </div>
+            `;
+
+            const transcriptDiv = document.getElementById('transcript');
+            const segments = call.transcript?.segments || [];
+            transcriptDiv.innerHTML = (segments || []).map(seg => {
+                const speaker = (seg.speaker || 'Unknown').replace(/_/g, ' ').toUpperCase();
+                const speakerClass = seg.speaker?.includes('0') ? '' : 'speaker-1';
+                return `
+                    <div class="transcript-line ${speakerClass}">
+                        <div>
+                            <div class="transcript-speaker">${speaker} <span class="transcript-time">[${(seg.start_s || 0).toFixed(1)}s]</span></div>
+                            <div class="transcript-text">${seg.text}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('scorecardDetail').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function toggleTranscript() {
+            const el = document.getElementById('transcript');
+            el.style.display = el.style.display === 'none' ? 'block' : 'none';
+        }
+
+        // Dashboard
+        async function loadDieticianList() {
+            try {
+                const response = await fetch(API_BASE + '/dieticians/');
+                if (!response.ok) return;
+
+                const dieticians = await response.json();
+                const select = document.getElementById('dieticianSelect');
+                select.innerHTML = '<option value="">-- Choose a dietician --</option>' +
+                    dieticians.map(d => `<option value="${d.id}">${d.name} (${d.call_count} calls)</option>`).join('');
+            } catch (error) {
+                console.error('Error loading dieticians:', error);
+            }
+        }
+
+        async function loadDieticianSummary() {
+            const dieticianId = document.getElementById('dieticianSelect').value;
+            if (!dieticianId) {
+                document.getElementById('dashboardContent').style.display = 'none';
+                return;
+            }
+
+            try {
+                const response = await fetch(API_BASE + '/dieticians/' + dieticianId + '/summary');
+                if (!response.ok) return;
+
+                const summary = await response.json();
+                renderDashboard(summary);
+            } catch (error) {
+                console.error('Error loading summary:', error);
+            }
+        }
+
+        function renderDashboard(summary) {
+            document.getElementById('dashboardContent').style.display = 'block';
+
+            document.getElementById('kpi-total').textContent = summary.total_calls_analysed;
+            document.getElementById('kpi-avg').textContent = (summary.avg_overall_score || 0).toFixed(1);
+            document.getElementById('kpi-rank').textContent = summary.peer_rank + ' of ' + summary.peer_total;
+            document.getElementById('kpi-team-avg').textContent = summary.team_avg_score.toFixed(1);
+
+            const pointers = document.getElementById('coachingPointers');
+            pointers.innerHTML = summary.coaching_pointers.map(p => `<li>${p}</li>`).join('');
+
+            const flagsTable = document.getElementById('flagsTable');
+            const totalCalls = summary.total_calls_analysed;
+            flagsTable.innerHTML = Object.entries(summary.flag_counts || {}).map(([flagType, count]) => {
+                const pct = totalCalls > 0 ? (count / totalCalls * 100).toFixed(0) : 0;
+                return `<tr><td>${flagType}</td><td>${count}</td><td>${pct}%</td></tr>`;
+            }).join('');
+
+            const trendLabels = summary.trend.map(t => new Date(t.call_datetime).toLocaleDateString());
+            const trendData = summary.trend.map(t => t.overall_weighted_score || 0);
+
+            if (trendChartInstance) trendChartInstance.destroy();
+            trendChartInstance = new Chart(document.getElementById('trendChart'), {
+                type: 'line',
+                data: {
+                    labels: trendLabels,
+                    datasets: [{
+                        label: 'Your Score',
+                        data: trendData,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        borderWidth: 3,
+                        pointRadius: 5,
+                        pointBackgroundColor: '#3b82f6',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2
+                    }, {
+                        label: 'Team Average',
+                        data: Array(trendLabels.length).fill(summary.team_avg_score),
+                        borderColor: '#cbd5e1',
+                        borderDash: [5, 5],
+                        fill: false,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top' } }
+                }
+            });
+
+            const dims = Object.entries(summary.dimension_averages || {});
+            if (radarChartInstance) radarChartInstance.destroy();
+            radarChartInstance = new Chart(document.getElementById('radarChart'), {
+                type: 'radar',
+                data: {
+                    labels: dims.map(d => d[0].replace(/_/g, ' ')),
+                    datasets: [{
+                        label: 'Your Score',
+                        data: dims.map(d => d[1]),
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                        borderWidth: 2
+                    }, {
+                        label: 'Team Average',
+                        data: Array(dims.length).fill(summary.team_avg_score),
+                        borderColor: '#cbd5e1',
+                        backgroundColor: 'rgba(203, 213, 225, 0.1)',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top' } }
+                }
+            });
+        }
+
+        window.addEventListener('load', () => {
+            loadDieticianList();
+        });
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
