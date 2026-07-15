@@ -117,25 +117,34 @@ class ClaudeReconstructor:
             return raw_transcript, {}
 
     def _create_english_prompt(self, raw_transcript: str) -> str:
-        """Create prompt for English transcript reconstruction"""
-        return f"""You are a speech-to-text error correction specialist for healthcare calls.
+        """Create prompt for English transcript reconstruction with Bajaj-specific vocabulary"""
+        return f"""You are a speech-to-text error correction specialist for Bajaj Finserv Health calls.
 
 TASK: Fix transcription errors in this degraded English healthcare transcript while preserving the exact conversation.
 
-COMMON STT ERRORS TO FIX (examples):
-- "TBS Bayai" → "TVS Bajaj" (similar phonetics)
-- "Beep beep beep" → silence or noise markers
+BAJAJ FINSERV VOCABULARY (Always correct these patterns):
+- "TBS" / "TVS" / "Bajai" / "Bajaj-ee" → "Bajaj Finserv Health"
+- "benefits" / "benifits" / "beniefit" → "benefits" or "health benefits plan"
+- "appointment" / "apointment" / "appointement" → "appointment"
+- "consultation" / "consultion" / "cosultation" → "consultation"
+- "health plan" / "health pan" / "health bland" → "health plan"
+- "coverage" / "covrage" / "coverage" → "coverage"
+- "dietician" / "dietition" / "diatician" → "dietician"
+
+COMMON STT ERRORS TO FIX:
 - "the book of" → "the telehealth"
+- "I'm from TBS" → "I'm calling from Bajaj"
+- "image is not" → "appointment is not"
 - Repeated fragments (stuttering artifacts)
 - Missing punctuation despite clear sentence boundaries
 
 RULES:
-1. Fix obvious phonetic confusions using healthcare domain knowledge
-2. Remove duplicate/repeated words (except natural repetition for emphasis)
-3. Correct obvious letter/number confusions
+1. Correct domain-specific terminology (benefits, appointments, consultation, etc.)
+2. Fix obvious phonetic confusions using healthcare knowledge
+3. Remove duplicate/repeated words (except natural repetition for emphasis)
 4. Add natural punctuation where sentence boundaries are clear
 5. Preserve exact speaking order and all topics covered
-6. DO NOT add words, explanations, or context not in the original
+6. DO NOT add words or context not in the original
 7. DO NOT remove any medical information or health mentions
 
 TRANSCRIPT TO FIX:
@@ -144,40 +153,49 @@ TRANSCRIPT TO FIX:
 Respond with ONLY valid JSON (no markdown, no extra text):
 {{
     "reconstructed_transcript": "The fixed transcript with all corrections applied",
-    "entities": {{"patient_name": "exact name if stated", "organization": "exact org if stated"}},
-    "confidence": "high/medium/low based on how confident you are"
+    "entities": {{"patient_name": "exact name if stated", "organization": "Bajaj Finserv Health if implied/stated"}},
+    "confidence": "high/medium/low"
 }}"""
 
     def _create_hindi_prompt(self, raw_transcript: str) -> str:
-        """Create prompt for Hindi transcript reconstruction"""
-        return f"""आप एक speech-to-text त्रुटि सुधार विशेषज्ञ हैं जो स्वास्थ्य सेवा कॉल्स के लिए काम करते हैं।
+        """Create prompt for Hindi transcript reconstruction with Bajaj-specific vocabulary"""
+        return f"""आप बजाज फिनसर्व स्वास्थ्य कॉल्स के लिए speech-to-text त्रुटि सुधार विशेषज्ञ हैं।
 
-कार्य: इस degraded Hindi transcript में transcription errors को ठीक करें, लेकिन बातचीत को पूरी तरह बचाएं।
+कार्य: इस degraded Hindi transcript में transcription errors को ठीक करें, बातचीत को पूरी तरह बचाएं।
+
+बजाज फिनसर्व शब्दावली (हमेशा ये सही करें):
+- "बीड़ी" / "बिमा" / "बेनिफिट" → "benefits" या "health benefits plan"
+- "अपॉइंटमेंट" / "अपॉइंटमेंट" → "appointment"
+- "करसेंटेशन" / "कंसल्टेशन" → "consultation"
+- "डॉक्टर" / "दॉक्टर" → "doctor"
+- "हेल्थ" / "हेलत" → "health"
+- "कवरेज" / "कवरेज" → "coverage"
+- "डायटीशियन" / "डायटिशियन" → "dietician"
 
 आम STT त्रुटियों के उदाहरण (ये ठीक करें):
-- "बीड़ी अग्याज" → "benefits" (फोनेटिक भ्रम)
-- "हलो हलो" → "नमस्ते" (greeting confusion)
-- "विक्त" → "विकल्प" (partial word)
+- "हलो हलो" → "नमस्ते" (greeting fixing)
+- "विक्त" → "विकल्प" (partial word recovery)
 - "चेवियरस" → "service/benefit" (severe distortion)
-- दोहराए गए fragments (स्टटरिंग artifacts)
+- "बीड़ी अग्याज" → "benefits plan" (phonetic confusion)
+- दोहराए गए fragments (stuttering artifacts)
 - लापता विराम चिह्न
 
 नियम:
-1. Healthcare domain knowledge से obvious phonetic confusions को ठीक करें
-2. बिना प्राकृतिक जोर के दोहराए गए शब्दों को हटाएं
-3. स्पष्ट sentence boundaries पर विराम चिह्न जोड़ें
-4. बोलने का सही क्रम बचाएं
-5. सभी medical information/health mentions बचाएं
-6. Original में नहीं है ऐसे शब्द/context न जोड़ें
-7. कोई जानकारी न हटाएं
+1. Domain-specific terminology सही करें (benefits, appointments, consultation)
+2. Healthcare knowledge से phonetic confusions ठीक करें
+3. बिना जोर के दोहराए गए शब्दों को हटाएं
+4. स्पष्ट boundaries पर विराम चिह्न जोड़ें
+5. बोलने का सही क्रम + सभी topics बचाएं
+6. Original में नहीं है ऐसा context न जोड़ें
+7. कोई medical information न हटाएं
 
 ठीक करने के लिए TRANSCRIPT:
 {raw_transcript}
 
-केवल valid JSON respond करें (markdown नहीं, कोई extra text नहीं):
+केवल valid JSON respond करें:
 {{
     "reconstructed_transcript": "सभी corrections के साथ ठीक किया गया transcript",
-    "entities": {{"patient_name": "exact नाम अगर कहा गया", "organization": "exact organization अगर कहा गया"}},
+    "entities": {{"patient_name": "exact नाम अगर कहा गया", "organization": "Bajaj Finserv Health अगर implied/stated"}},
     "confidence": "high/medium/low"
 }}"""
 
