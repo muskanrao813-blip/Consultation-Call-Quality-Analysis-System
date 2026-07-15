@@ -143,7 +143,7 @@ async def list_calls(db: Session = Depends(get_db)):
             result.append({
                 "id": str(call.id),
                 "dietician_name": call.dietician.name if call.dietician else "Unknown",
-                "patient_name": gemini_patient or call.patient_name or "Unknown Patient",
+                "patient_name": gemini_patient or (call.patient_name if call.patient_name and call.patient_name.lower() not in {"unknown", "unknown patient", ""} else "Not Identified"),
                 "appointment_id": call.appointment_id,
                 "call_datetime": call.call_datetime,
                 "call_duration_seconds": call.call_duration_seconds,
@@ -260,13 +260,14 @@ async def get_call(call_id: str, db: Session = Depends(get_db)):
         ]
 
         # ── Resolve patient name: prefer Gemini entity over Excel column ──
+        raw_gemini_name = gemini_entities.get("customer_name", "")
+        excel_name = call.patient_name or ""
+        _invalid = {"not mentioned", "unknown", "unknown patient", "", "none", "not identified"}
         patient_name = (
-            gemini_entities.get("customer_name")
-            or call.patient_name
-            or "Unknown Patient"
+            raw_gemini_name if raw_gemini_name and raw_gemini_name.lower() not in _invalid
+            else excel_name if excel_name and excel_name.lower() not in _invalid
+            else "Not Identified"
         )
-        if patient_name in ("Not mentioned", "Unknown", ""):
-            patient_name = call.patient_name or "Unknown Patient"
 
         return {
             "id": call.id,
@@ -377,16 +378,21 @@ async def list_dieticians(db: Session = Depends(get_db)):
                 sop_breaches += flags
 
                 # Pull training gaps from first rubric score's raw_llm_response
+                seen_gap_titles = {g["title"] for g in training_gaps}
                 for rs in rubric_scores:
                     raw = rs.raw_llm_response or {}
                     if isinstance(raw, dict):
                         gaps = raw.get("insights", {}).get("trainingGaps") or raw.get("insights", {}).get("trainingGapRecs", [])
                         for gap in gaps:
+                            title = gap.get("title", "")
+                            if not title or title in seen_gap_titles:
+                                continue
+                            seen_gap_titles.add(title)
                             training_gaps.append({
-                                "id": f"{call.id}-{gap.get('title', '')[:20]}",
-                                "title": gap.get("title", ""),
+                                "id": title,  # stable, deduped by title
+                                "title": title,
                                 "description": gap.get("description", ""),
-                                "category": gap.get("type", "compliance").title(),
+                                "category": gap.get("type", "compliance").replace("_", " ").title(),
                                 "urgency": gap.get("urgency", "Mid-term"),
                                 "assigned": False,
                                 "type": gap.get("type", "compliance"),

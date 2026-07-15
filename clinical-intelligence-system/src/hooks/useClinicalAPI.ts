@@ -34,7 +34,7 @@ export function useClinicalAPI() {
           status: call.status || 'processing',
           progress: call.status === 'completed' ? 100 : 50,
           statusText: call.status === 'completed' ? 'Ready for review' : 'Processing',
-          sopCompliant: (call.overall_weighted_score || 0) >= 70,
+          sopCompliant: (call.overall_weighted_score || 0) >= 60,
           sopComplianceScore: call.overall_weighted_score || 0,
           scores: call.scores || { greeting: 0, empathy: 0, compliance: 0, technical: 0 },
           qaAlerts: call.qaAlerts || [],

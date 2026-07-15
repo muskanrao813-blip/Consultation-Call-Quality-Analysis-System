@@ -12,13 +12,17 @@ def compute_weighted_score(
     dimension_scores: Dict[str, float],
     clinical_safety_triggered: bool = False
 ) -> float:
-    """Compute overall weighted score with safety gate."""
+    """Compute overall weighted score (0-100) from ClinicalAnalyzer dimension scores.
+
+    ClinicalAnalyzer returns: greeting, empathy, compliance, technical (0-100 each).
+    Weights sum to 1.0.
+    """
+    # Map from ClinicalAnalyzer dimension names → weights
     weights = {
-        "discovery_assessment": 0.20,
-        "empathy_communication": 0.20,
-        "rushed_forced_detection": 0.15,
-        "adherence_counselling": 0.20,
-        "consultation_completeness": 0.25,
+        "greeting":   0.15,
+        "empathy":    0.25,
+        "compliance": 0.35,
+        "technical":  0.25,
     }
 
     weighted_sum = 0.0
@@ -26,14 +30,9 @@ def compute_weighted_score(
         score = dimension_scores.get(dim, 0.0)
         weighted_sum += score * weight
 
-    # Inverse the rushed/forced score (higher risk = lower contribution)
-    rushed_score = dimension_scores.get("rushed_forced_detection", 0.0)
-    rushed_contribution = (10 - rushed_score) * weights["rushed_forced_detection"]
-    weighted_sum = weighted_sum - (rushed_score * weights["rushed_forced_detection"]) + rushed_contribution
-
-    # Clinical safety gate: if triggered and mishandled, cap at 4.0
+    # Clinical safety gate: if triggered and mishandled, cap at 40 out of 100
     if clinical_safety_triggered:
-        weighted_sum = min(weighted_sum, 4.0)
+        weighted_sum = min(weighted_sum, 40.0)
 
     return round(weighted_sum, 2)
 

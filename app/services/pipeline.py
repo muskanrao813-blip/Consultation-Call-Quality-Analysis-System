@@ -538,50 +538,35 @@ def process_call(call_id: str) -> None:
                 metrics_tracker.record_error("score_storage", str(e))
                 raise PipelineStageError(f"Failed to store scores: {e}") from e
 
-            # 4b. Generate QA Flags from SOP Violations (NEW - Clinical Analysis)
+            # 4b. Store QA flags from Claude SOP analysis (deduplicated by title)
             try:
                 metrics_tracker.start_stage("qa_flag_generation")
-                logger.info("Step 4b: Generating QA flags from SOP violations")
+                logger.info("Step 4b: Storing Claude QA alerts")
 
-                # Extract SOP compliance data if using ClinicalAnalyzer
-                sop_compliance = rubric_response.get("sop_compliance", {})
-                violations = sop_compliance.get("violations", [])
-
-                # Generate QA flags from violations
                 qa_alerts = rubric_response.get("qa_alerts", [])
+                seen_flags = set()
+                stored = 0
 
-                for violation in violations:
-                    if violation.get("violated"):
-                        flag_type = violation.get("check", "SOP Violation")
-                        detail = violation.get("evidence", "")
-
-                        qa_flag = models.QAFlag(
-                            call_id=call.id,
-                            flag_type=flag_type,
-                            triggered=True,
-                            detail=detail
-                        )
-                        db.add(qa_flag)
-                        logger.info(f"   - QA Flag: {flag_type} (severity: critical)")
-
-                # Also add alerts as QA flags if not already covered
                 for alert in qa_alerts:
-                    if alert.get("severity") == "critical":
-                        qa_flag = models.QAFlag(
-                            call_id=call.id,
-                            flag_type=alert.get("title", "QA Alert"),
-                            triggered=True,
-                            detail=alert.get("description", "")
-                        )
-                        db.add(qa_flag)
+                    title = alert.get("title", "")
+                    if not title or title in seen_flags:
+                        continue
+                    seen_flags.add(title)
+                    qa_flag = models.QAFlag(
+                        call_id=call.id,
+                        flag_type=title,
+                        triggered=alert.get("severity") in ("critical", "warning"),
+                        detail=alert.get("description", ""),
+                    )
+                    db.add(qa_flag)
+                    stored += 1
 
                 db.flush()
-                logger.info(f"   - Total QA flags generated: {len(violations) + len([a for a in qa_alerts if a.get('severity') == 'critical'])}")
+                logger.info(f"   - Stored {stored} unique QA alerts")
                 metrics_tracker.end_stage("qa_flag_generation")
             except Exception as e:
                 db.rollback()
-                logger.warning(f"Failed to generate QA flags: {e} - continuing without flags")
-                # Don't fail the pipeline for flag generation
+                logger.warning(f"Failed to store QA flags: {e}")
                 metrics_tracker.record_error("qa_flag_generation", str(e))
 
             # 5. Compute weighted score
@@ -606,25 +591,36 @@ def process_call(call_id: str) -> None:
                 metrics_tracker.record_error("weighted_scoring", str(e))
                 raise PipelineStageError(f"Weighted scoring failed: {e}") from e
 
-            # 6. Evaluate flags
+            # 6. Evaluate deterministic flags (only add ones NOT already covered by Claude)
             try:
                 metrics_tracker.start_stage("flag_evaluation")
-                logger.info("Step 6: Evaluating QA flags")
+                logger.info("Step 6: Evaluating deterministic QA flags")
                 flags = evaluate_flags(metrics_dict, dimension_scores_db, rubric_response, db, call)
 
+                # Get already-stored flag types to avoid duplicates
+                existing_flag_types = {
+                    f.flag_type for f in db.query(models.QAFlag).filter(models.QAFlag.call_id == call.id).all()
+                }
+
+                added = 0
                 for flag_data in flags:
+                    if not flag_data["triggered"]:
+                        continue
+                    if flag_data["flag_type"] in existing_flag_types:
+                        continue  # Skip if Claude already flagged this
                     flag_obj = models.QAFlag(
                         call_id=call.id,
                         flag_type=flag_data["flag_type"],
-                        triggered=flag_data["triggered"],
+                        triggered=True,
                         detail=flag_data["detail"],
                     )
                     db.add(flag_obj)
+                    existing_flag_types.add(flag_data["flag_type"])
+                    added += 1
 
                 db.flush()
-                triggered_count = sum(1 for f in flags if f["triggered"])
                 metrics_tracker.end_stage("flag_evaluation")
-                logger.info("Flag evaluation complete: %d/%d flags triggered", triggered_count, len(flags))
+                logger.info("Deterministic flags added: %d new", added)
             except Exception as e:
                 db.rollback()
                 metrics_tracker.record_error("flag_evaluation", str(e))
