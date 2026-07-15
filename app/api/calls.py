@@ -341,6 +341,90 @@ async def get_transcript(call_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/dieticians")
+async def list_dieticians(db: Session = Depends(get_db)):
+    """Get per-dietician performance report aggregated from completed calls."""
+    try:
+        dieticians = db.query(models.Dietician).all()
+        result = []
+
+        for dietician in dieticians:
+            calls = db.query(models.Call).filter(
+                models.Call.dietician_id == dietician.id,
+                models.Call.status == "completed"
+            ).all()
+
+            if not calls:
+                continue
+
+            scores_all = []
+            sop_breaches = 0
+            training_gaps = []
+
+            for call in calls:
+                rubric_scores = db.query(models.RubricScore).filter(
+                    models.RubricScore.call_id == call.id
+                ).all()
+                if rubric_scores:
+                    overall = rubric_scores[0].overall_weighted_score or 0
+                    scores_all.append(overall)
+
+                # Count triggered QA flags as breaches
+                flags = db.query(models.QAFlag).filter(
+                    models.QAFlag.call_id == call.id,
+                    models.QAFlag.triggered == True
+                ).count()
+                sop_breaches += flags
+
+                # Pull training gaps from first rubric score's raw_llm_response
+                for rs in rubric_scores:
+                    raw = rs.raw_llm_response or {}
+                    if isinstance(raw, dict):
+                        gaps = raw.get("insights", {}).get("trainingGaps") or raw.get("insights", {}).get("trainingGapRecs", [])
+                        for gap in gaps:
+                            training_gaps.append({
+                                "id": f"{call.id}-{gap.get('title', '')[:20]}",
+                                "title": gap.get("title", ""),
+                                "description": gap.get("description", ""),
+                                "category": gap.get("type", "compliance").title(),
+                                "urgency": gap.get("urgency", "Mid-term"),
+                                "assigned": False,
+                                "type": gap.get("type", "compliance"),
+                            })
+                    break
+
+            avg_score = round(sum(scores_all) / len(scores_all), 1) if scores_all else 0
+            # Trend: simulate from last 5 call scores for sparkline
+            trend_vals = [round(s / 10, 1) for s in scores_all[-5:]] if scores_all else [5, 5, 5, 5, 5]
+            while len(trend_vals) < 5:
+                trend_vals.insert(0, trend_vals[0] if trend_vals else 5)
+
+            trend_direction = "up" if len(scores_all) > 1 and scores_all[-1] > scores_all[0] else "down" if len(scores_all) > 1 and scores_all[-1] < scores_all[0] else "flat"
+            ai_status = "Exceeding Goals" if avg_score >= 80 else "Training Required" if avg_score < 50 else "Target Met"
+
+            result.append({
+                "dietician": {
+                    "id": str(dietician.id),
+                    "name": dietician.name,
+                    "initials": "".join(w[0].upper() for w in dietician.name.split()[:2]),
+                    "role": "Clinical Dietician",
+                    "avgScore": avg_score,
+                    "trend": f"+{avg_score:.0f}%" if trend_direction == "up" else f"{avg_score:.0f}%",
+                    "trendDirection": trend_direction,
+                    "trendValues": trend_vals,
+                    "sopBreaches": sop_breaches,
+                    "aiStatus": ai_status,
+                    "totalCalls": len(calls),
+                },
+                "trainingGaps": training_gaps,
+            })
+
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching dieticians: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/batches/{batch_id}")
 async def get_batch_status(batch_id: str, db: Session = Depends(get_db)):
     """Get batch upload status."""

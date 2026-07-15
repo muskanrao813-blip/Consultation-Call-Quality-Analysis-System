@@ -167,18 +167,24 @@ CRITICAL — HOW TO IDENTIFY SPEAKERS:
 These are OUTBOUND calls made by a Bajaj Finserv Health Dietician TO a customer/patient.
 
 The DIETICIAN is the one who:
-- Initiates the call and speaks first after connection
-- Asks "XYZ ji bol rahe hain?" or "XYZ ji hain aap?" to CONFIRM the patient's identity
-- Mentions the consultation booking ("aapne consultation book kara tha")
-- Asks about health status ("aapko koi problem hai?", "koi advice chahiye?")
-- Offers to send health guidelines ("general guidelines bhej rahe hain")
-- Thanks the customer at the end
+- Initiates and calls outbound — they are the CALLER
+- Says "[Patient Name] ji bol rahe hain sir/ma'am?" — THIS IS THE DIETICIAN asking if the patient is there (even though it contains the patient's name)
+- Mentions the consultation booking: "aapne TVS Bajaj mein consultation book kara tha"
+- Asks about health: "aapko sehat ki koi dikkat hai?", "koi advice chahiye?"
+- Offers WhatsApp guidelines: "general guideline bhej rahe hain"
+- Repeats or clarifies when patient can't hear
 
 The CUSTOMER/PATIENT is the one who:
-- Answers with "Ji", "Haan", "Hello"
-- Responds briefly to the dietician's questions
-- Confirms they have no issues ("sab theek hai", "koi problem nahi")
-- May ask questions about their booking
+- Picks up the phone (RECEIVER of the call)
+- Says "Ji", "Haan", "Hello" in response to the dietician
+- Says they are busy or can't hear: "main market mein hoon", "sunai nahi de raha", "baad mein call karo"
+- Confirms health status: "sab theek hai", "koi problem nahi"
+
+CRITICAL EXAMPLES to get RIGHT (common mistakes Gemini makes):
+- "[Name] ji bol rahe hain sir?" → This is [Dietician] asking, NOT the patient saying their name
+- "Main market mein hoon, sunai nahi de raha, baad mein baat karte hain" → This is [Customer] (patient is busy)
+- "Hum general guideline bhej rahe hain WhatsApp pe" → Always [Dietician]
+- "Ji" / "Haan" / "Theek hai" as single-word responses → Usually [Customer] confirming
 
 SPEAKER LABELS TO USE:
 - [Dietician]: for the Bajaj Finserv Health dietician/agent

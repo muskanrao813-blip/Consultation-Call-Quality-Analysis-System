@@ -164,12 +164,35 @@ export async function fetchCallDetail(callId: string): Promise<Recording | null>
 export async function fetchDashboardStats() {
   try {
     const response = await fetch(`${API_BASE_URL}/api/clinical/dashboard/stats`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch stats: ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`Failed to fetch stats: ${response.status}`);
     return await response.json();
   } catch (err) {
     console.error('Failed to fetch dashboard stats:', err);
     return null;
+  }
+}
+
+export async function fetchDieticianReports(): Promise<{ dieticians: any[]; trainingGaps: any[] }> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/dieticians`);
+    if (!response.ok) throw new Error(`Failed to fetch dieticians: ${response.status}`);
+    const data: any[] = await response.json();
+
+    const dieticians = data.map((d: any) => d.dietician);
+    // Deduplicate training gaps by title across all dieticians
+    const seen = new Set<string>();
+    const trainingGaps: any[] = [];
+    for (const d of data) {
+      for (const gap of d.trainingGaps || []) {
+        if (!seen.has(gap.title)) {
+          seen.add(gap.title);
+          trainingGaps.push(gap);
+        }
+      }
+    }
+    return { dieticians, trainingGaps };
+  } catch (err) {
+    console.error('Failed to fetch dietician reports:', err);
+    return { dieticians: [], trainingGaps: [] };
   }
 }
