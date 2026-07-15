@@ -1,39 +1,54 @@
 #!/usr/bin/env python3
-from app.db.session import SessionLocal
-from app.db import models
-from datetime import datetime, timedelta
+# -*- coding: utf-8 -*-
+import sys, io, requests
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
-db = SessionLocal()
+BASE = "http://localhost:8000"
 
-# Get all calls from last 24 hours
-calls = db.query(models.Call).order_by(models.Call.created_at.desc()).limit(20).all()
+calls = requests.get(f"{BASE}/api/calls").json()
+completed = [c for c in calls if c["status"] == "completed"]
+pending = [c for c in calls if c["status"] in ("pending", "processing")]
 
-print(f"Total recent calls: {len(calls)}\n")
+print(f"{'='*60}")
+print(f"TOTAL: {len(calls)}  COMPLETED: {len(completed)}  IN QUEUE: {len(pending)}")
+print(f"{'='*60}\n")
 
-for call in calls[:10]:
-    print(f"{'='*80}")
-    print(f"Call ID: {str(call.id)[:8]}")
-    print(f"Dietician: {call.dietician.name if call.dietician else 'Unknown'}")
-    print(f"Created: {call.created_at}")
-    print(f"Status: {call.status}")
-    print(f"Error: {call.error_message}")
+all_ok = True
+for c in completed:
+    d = requests.get(f"{BASE}/api/calls/{c['id']}").json()
+    s = d.get("scores") or {}
+    ins = d.get("insights") or {}
+    entities = d.get("entities") or {}
+    alerts = d.get("qaAlerts") or []
+    lines = (d.get("transcript") or {}).get("diarized_lines") or []
 
-    # Check scores
-    scores = db.query(models.RubricScore).filter(models.RubricScore.call_id == call.id).all()
-    if scores:
-        print(f"Dimension Scores: {len(scores)} dimensions")
-        for score in scores[:2]:
-            print(f"  - {score.dimension}: {score.score}")
-    else:
-        print(f"Dimension Scores: NONE")
+    checks = {
+        "patient_name":    bool(d.get("patient_name") and d["patient_name"] not in ("Unknown Patient","Unknown","")),
+        "dietician_name":  bool(d.get("dietician_name")),
+        "scores non-zero": any(v > 0 for v in s.values()),
+        "overall score":   bool(d.get("overall_weighted_score")),
+        "qa alerts":       len(alerts) > 0,
+        "summary":         bool(ins.get("summary")),
+        "whatWentWell":    len(ins.get("whatWentWell", [])) > 0,
+        "improvements":    len(ins.get("areasForImprovement", [])) > 0,
+        "transcript turns":len(lines) > 0,
+        "entities":        bool(entities.get("customer_name")),
+    }
 
-    # Check feedback
-    feedback = db.query(models.FeedbackNote).filter(models.FeedbackNote.call_id == call.id).first()
-    if feedback:
-        print(f"Feedback: {feedback.bullet[:100]}")
-    else:
-        print(f"Feedback: NONE")
+    passed = sum(checks.values())
+    total = len(checks)
+    status = "ALL OK" if passed == total else f"PARTIAL {passed}/{total}"
+    if passed < total:
+        all_ok = False
 
+    print(f"[{status}] {c['id'][:8]}...  Patient: {d.get('patient_name')}  Score: {d.get('overall_weighted_score')}")
+    print(f"  Scores: greeting={s.get('greeting')} empathy={s.get('empathy')} compliance={s.get('compliance')} technical={s.get('technical')}")
+    print(f"  QA Alerts: {len(alerts)}  Transcript turns: {len(lines)}  Outcome: {entities.get('call_outcome')}")
+    missing = [k for k, v in checks.items() if not v]
+    if missing:
+        print(f"  MISSING: {', '.join(missing)}")
     print()
 
-db.close()
+print("="*60)
+print("RESULT:", "ALL CHECKS PASSED" if all_ok else "SOME CHECKS FAILED - see MISSING above")
+print("="*60)

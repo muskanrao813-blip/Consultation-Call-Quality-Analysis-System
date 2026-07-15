@@ -38,8 +38,15 @@ class CallDetailResponse(CallResponse):
     metrics: Optional[dict] = None
     rubric_scores: Optional[list] = None
     qa_flags: Optional[list] = None
+    qaAlerts: Optional[list] = None
     feedback_notes: Optional[dict] = None
     overall_weighted_score: Optional[float] = None
+    scores: Optional[dict] = None
+    insights: Optional[dict] = None
+    entities: Optional[dict] = None
+    dietician_name: Optional[str] = None
+    raw_transcript: Optional[str] = None
+    reconstructed_transcript: Optional[str] = None
 
 
 class ValidationReportRow(BaseModel):
