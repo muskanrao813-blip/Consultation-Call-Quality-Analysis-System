@@ -100,20 +100,20 @@ TASK: Transcribe this audio call recording accurately.
 
 {lang_instruction}
 
+SPEAKER IDENTIFICATION:
+- [Dietician]: The Bajaj Finserv Health agent — initiates call, asks patient's name, discusses consultation, sends guidelines
+- [Customer]: The patient/customer — responds to questions, confirms health status
+
 INSTRUCTIONS:
 1. Transcribe every spoken word — do not summarize or skip anything
-2. Mark each speaker: [Agent]: ... and [Patient]: ...
-3. If a word is unclear due to audio noise, write [unclear] rather than guessing wrong
-4. Keep domain-specific terms intact: "Bajaj Finserv Health", "benefits plan", "consultation", "appointment"
-5. Add natural punctuation (.,?!) based on speech tone and pauses
-6. Do NOT add explanations — transcription only
+2. Label each line [Dietician]: or [Customer]: based on who is speaking
+3. Mark unclear audio as [unclear] rather than guessing
+4. Keep domain terms: "Bajaj Finserv Health", "consultation", "appointment", "guidelines"
+5. Add natural punctuation based on speech tone
 
 OUTPUT FORMAT:
-[Agent]: <what agent said>
-[Patient]: <what patient said>
-(continue alternating)
-
-If speaker cannot be identified, write [Speaker]: <text>
+[Dietician]: <what dietician said>
+[Customer]: <what customer said>
 """
 
         response = client.models.generate_content(
@@ -161,35 +161,56 @@ If speaker cannot be identified, write [Speaker]: <text>
 
         prompt = f"""{BAJAJ_CONTEXT}
 
-TASK: Transcribe this audio call recording AND extract key information.
+TASK: Transcribe this audio call and extract key information.
+
+CRITICAL — HOW TO IDENTIFY SPEAKERS:
+These are OUTBOUND calls made by a Bajaj Finserv Health Dietician TO a customer/patient.
+
+The DIETICIAN is the one who:
+- Initiates the call and speaks first after connection
+- Asks "XYZ ji bol rahe hain?" or "XYZ ji hain aap?" to CONFIRM the patient's identity
+- Mentions the consultation booking ("aapne consultation book kara tha")
+- Asks about health status ("aapko koi problem hai?", "koi advice chahiye?")
+- Offers to send health guidelines ("general guidelines bhej rahe hain")
+- Thanks the customer at the end
+
+The CUSTOMER/PATIENT is the one who:
+- Answers with "Ji", "Haan", "Hello"
+- Responds briefly to the dietician's questions
+- Confirms they have no issues ("sab theek hai", "koi problem nahi")
+- May ask questions about their booking
+
+SPEAKER LABELS TO USE:
+- [Dietician]: for the Bajaj Finserv Health dietician/agent
+- [Customer]: for the patient/customer
 
 INSTRUCTIONS:
-1. Transcribe every spoken word with speaker labels: [Agent]: ... and [Patient]: ...
-2. Mark unclear audio as [unclear]
-3. Keep all domain terms: "Bajaj Finserv Health", "benefits", "consultation", "appointment"
-4. Add natural punctuation
-5. Detect language: Hindi → Devanagari, English → Latin, Mixed → use both naturally
+1. Transcribe EVERY spoken word — do not skip or summarize anything
+2. Label each line as [Dietician]: or [Customer]: based on the rules above
+3. Mark truly unclear audio as [unclear] — do not guess wildly
+4. Preserve Hinglish naturally (mix of Hindi and English as spoken)
+5. Add natural punctuation based on speech tone
 
 After transcription, extract:
-- patient_name: Full name of patient/customer (or "Not mentioned")
-- agent_name: Name of the Bajaj agent (or "Not mentioned")
-- organization: Company mentioned (usually "Bajaj Finserv Health")
+- customer_name: Name of the customer/patient (the name asked by dietician e.g. "Umesh Ramesh ji?")
+- dietician_name: Name of the dietician if mentioned
+- organization: Always "Bajaj Finserv Health" if Bajaj is mentioned
 - call_purpose: What the call is about (1 sentence)
-- health_topics: Any health conditions, symptoms, or medical topics discussed
-- appointment_details: Any booking or scheduling information
-- action_items: What was agreed upon or needs follow-up
+- health_status: What the customer said about their health
+- appointment_details: Any consultation/booking mentioned
+- action_items: What will happen next (e.g. WhatsApp guidelines)
 - call_language: "Hindi" / "English" / "Hinglish"
 - call_outcome: "Resolved" / "Pending" / "Escalated" / "Unclear"
 
-Return ONLY valid JSON (no markdown):
+Return ONLY valid JSON (no markdown, no extra text):
 {{
-    "transcript": "[Agent]: ...\\n[Patient]: ...",
+    "transcript": "[Dietician]: ...\\n[Customer]: ...",
     "entities": {{
-        "patient_name": "...",
-        "agent_name": "...",
+        "customer_name": "...",
+        "dietician_name": "...",
         "organization": "...",
         "call_purpose": "...",
-        "health_topics": "...",
+        "health_status": "...",
         "appointment_details": "...",
         "action_items": "...",
         "call_language": "...",
