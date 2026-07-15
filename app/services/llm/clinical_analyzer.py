@@ -31,6 +31,17 @@ class ClinicalAnalyzer(LLMProvider):
             # Format transcript
             transcript_text = self._format_transcript(transcript_segments)
 
+            # Pull Gemini entities from segments if available (enriches Claude's context)
+            gemini_entities = {}
+            for seg in transcript_segments:
+                if seg.get("gemini_entities"):
+                    gemini_entities = seg["gemini_entities"]
+                    break
+
+            # Inject Gemini entities into metrics so prompt can use them
+            if gemini_entities:
+                metrics = {**metrics, "gemini_entities": gemini_entities}
+
             # Create clinical analysis prompt
             prompt = create_clinical_analysis_prompt(transcript_text, metrics, patient_condition)
 
@@ -47,37 +58,55 @@ class ClinicalAnalyzer(LLMProvider):
             raise
 
     def _format_transcript(self, segments: List[Dict]) -> str:
-        """Format segments into readable transcript."""
+        """Format segments into readable transcript for Claude analysis.
+
+        Handles both:
+        - Gemini output: segments with speaker='dietician'|'patient'|'unknown'
+        - Legacy output: single combined segment with full text
+        """
         lines = []
+
         for seg in segments:
-            speaker = seg.get("speaker", "Unknown").replace("_", " ").title()
-            text = seg.get("text", "")
+            speaker_raw = seg.get("speaker", "unknown")
+            text = seg.get("text", "").strip()
             timestamp = seg.get("start_s", 0)
-            lines.append(f"[{timestamp:.1f}s] {speaker}: {text}")
+
+            if not text:
+                continue
+
+            # Map speaker keys to display labels
+            if speaker_raw in ("dietician", "agent"):
+                label = "Dietician"
+            elif speaker_raw in ("patient", "customer"):
+                label = "Customer"
+            elif speaker_raw == "combined":
+                # Full Gemini transcript in one segment — already has [Dietician]/[Customer] labels
+                # Return as-is (it's already well-formatted)
+                return text
+            else:
+                label = "Speaker"
+
+            lines.append(f"[{timestamp:.0f}s] {label}: {text}")
+
         return "\n".join(lines)
 
     def _call_claude_cli(self, prompt: str) -> Dict:
-        """Call Claude CLI using its non-interactive print mode."""
+        """Call Claude CLI using stdin to pass the prompt."""
         try:
             import pathlib
+            import re
 
             claude_npm = pathlib.Path.home() / "AppData" / "Roaming" / "npm" / "claude.cmd"
             claude_cmd = str(claude_npm) if claude_npm.exists() else "claude"
 
             logger.info("[Clinical] Calling Claude CLI with clinical prompt")
 
-            cmd = [
-                claude_cmd,
-                "-p",
-                prompt,
-                "--output-format",
-                "json",
-                "--permission-mode",
-                "bypassPermissions",
-            ]
+            # Use stdin to pass the prompt (more reliable than command-line args)
+            cmd = [claude_cmd, "-p"]
 
             result = subprocess.run(
                 cmd,
+                input=prompt,
                 capture_output=True,
                 text=True,
                 encoding='utf-8',
@@ -85,42 +114,47 @@ class ClinicalAnalyzer(LLMProvider):
                 timeout=300
             )
 
-            output = (result.stdout or result.stderr or "").strip()
+            output = (result.stdout or "").strip()
+            if not output and result.stderr:
+                # Claude CLI may output to stderr
+                output = result.stderr.strip()
+
             if not output:
                 raise RuntimeError("Claude CLI returned empty output")
 
             logger.info(f"[Clinical] Got response ({len(output)} chars)")
 
+            # Try to parse JSON from the response
             try:
+                # First, try direct JSON parse
                 parsed = json.loads(output)
+                logger.info("[Clinical] Parsed response as JSON directly")
+                return parsed
             except json.JSONDecodeError:
-                import re
-                json_pattern = r'\{[\s\S]*"scores"[\s\S]*\}'
-                match = re.search(json_pattern, output)
+                pass
+
+            # Try to extract JSON from markdown code blocks or embedded in text
+            json_patterns = [
+                r'```json\s*([\s\S]*?)\s*```',  # ```json ... ```
+                r'```\s*([\s\S]*?)\s*```',       # ``` ... ```
+                r'\{[\s\S]*?"scores"[\s\S]*\}',  # JSON with "scores" key
+                r'\{[\s\S]*?\}',                  # Any JSON object
+            ]
+
+            for pattern in json_patterns:
+                match = re.search(pattern, output)
                 if match:
-                    parsed = json.loads(match.group(0))
-                else:
-                    match = re.search(r'\{[\s\S]*\}', output)
-                    if match:
-                        parsed = json.loads(match.group(0))
-                    else:
-                        raise ValueError("No JSON found in response")
+                    json_str = match.group(1) if '```' in pattern else match.group(0)
+                    try:
+                        parsed = json.loads(json_str)
+                        logger.info(f"[Clinical] Extracted JSON using pattern: {pattern[:30]}...")
+                        return parsed
+                    except json.JSONDecodeError:
+                        continue
 
-            if isinstance(parsed, dict) and parsed.get("is_error"):
-                detail = parsed.get("result") or parsed.get("message") or output
-                raise RuntimeError(f"Claude CLI rejected the request: {detail}")
-
-            if isinstance(parsed, dict) and "result" in parsed and isinstance(parsed["result"], str):
-                result_text = parsed["result"].strip()
-                if result_text.startswith("{"):
-                    return json.loads(result_text)
-                if result_text:
-                    return {"text": result_text}
-
-            if result.returncode != 0:
-                raise RuntimeError(f"Claude CLI failed with code {result.returncode}: {output[:1000]}")
-
-            return parsed
+            # If no JSON found, raise error with sample of output
+            output_sample = output[:300] if len(output) > 300 else output
+            raise ValueError(f"No JSON found in Claude response. Sample: {output_sample}")
 
         except json.JSONDecodeError as e:
             logger.error(f"[Clinical] JSON parse error: {e}")

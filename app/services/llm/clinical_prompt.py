@@ -1,5 +1,28 @@
 """Clinical-specific analysis prompt for dietary consultation calls."""
 
+
+def _format_gemini_entities(entities: dict) -> str:
+    """Format Gemini-extracted entities as context for Claude."""
+    if not entities:
+        return ""
+    lines = ["\nGEMINI PRE-EXTRACTED CONTEXT (use to inform your analysis):"]
+    mapping = {
+        "customer_name": "Customer Name",
+        "dietician_name": "Dietician Name",
+        "call_purpose": "Call Purpose",
+        "health_status": "Customer Health Status",
+        "appointment_details": "Appointment Details",
+        "action_items": "Action Items",
+        "call_language": "Language",
+        "call_outcome": "Call Outcome",
+    }
+    for key, label in mapping.items():
+        val = entities.get(key, "")
+        if val and val not in ("Not mentioned", "Unknown", "None", ""):
+            lines.append(f"- {label}: {val}")
+    return "\n".join(lines) + "\n" if len(lines) > 1 else ""
+
+
 def create_clinical_analysis_prompt(transcript: str, metrics: dict, patient_condition: str = "Diabetes") -> str:
     """
     Create a clinical-focused analysis prompt for dietician-patient calls.
@@ -13,16 +36,21 @@ def create_clinical_analysis_prompt(transcript: str, metrics: dict, patient_cond
         Formatted prompt for Claude CLI analysis
     """
 
-    return f"""You are a clinical quality assurance specialist reviewing a dietician-patient consultation call for {patient_condition} management.
+    return f"""You are a clinical quality assurance specialist reviewing a Bajaj Finserv Health dietician call for {patient_condition} management.
+
+TRANSCRIPT FORMAT:
+- [Dietician]: lines are spoken by the Bajaj Finserv Health dietician/agent making the call
+- [Customer]: lines are spoken by the patient/customer receiving the call
+- These labels come from AI speaker diarization — use them to evaluate who said what
 
 PATIENT CONDITION: {patient_condition} Management
 CALL METRICS:
 - Duration: {metrics.get('duration_seconds', 0)}s
 - Dietician Talk Ratio: {metrics.get('dietician_talk_ratio_pct', 0)}%
-- Patient Talk Ratio: {metrics.get('patient_talk_ratio_pct', 0)}%
+- Customer Talk Ratio: {metrics.get('patient_talk_ratio_pct', 0)}%
 - Interruptions: {metrics.get('interruption_count', 0)}
 - Response Latency: {metrics.get('avg_response_latency_seconds', 0)}s
-
+{_format_gemini_entities(metrics.get('gemini_entities', {}))}
 TRANSCRIPT:
 {transcript}
 
