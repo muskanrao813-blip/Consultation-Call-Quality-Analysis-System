@@ -106,10 +106,11 @@ async def list_calls(db: Session = Depends(get_db)):
             # Resolve patient name from Gemini entities if available
             transcript = db.query(models.Transcript).filter(models.Transcript.call_id == call.id).first()
             gemini_patient = None
+            _bad_names = {"not mentioned", "unknown", "unknown patient", "", "none", "not identified"}
             if transcript and transcript.raw_transcript_json:
                 entities = transcript.raw_transcript_json.get("entities", {})
                 name = entities.get("customer_name", "")
-                if name and name not in ("Not mentioned", "Unknown", ""):
+                if name and name.lower() not in _bad_names:
                     gemini_patient = name
 
             # Derive per-dimension scores for the list
