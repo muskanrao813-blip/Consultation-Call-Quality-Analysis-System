@@ -1,6 +1,7 @@
 """
 Unified Transcription with Reconstruction Service
-Integrates the unified pipeline with language detection, transcription, and reconstruction
+Primary: Gemini 2.0 Flash (full audio, no chunking, native Hindi/English/Hinglish)
+Fallback: Groq Whisper (chunked, spectral gating)
 """
 
 import os
@@ -20,6 +21,7 @@ from typing import Dict, List, Any
 logger = logging.getLogger(__name__)
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AQ.Ab8RN6K_ouw6DSjTmSI5ZtBAfnSthGXV_M6FuiV7XYu9f5FiXw")
 
 ENGLISH_CORRECTIONS = {
     "TBS Bayai": "TVS Bajaj",
@@ -501,35 +503,89 @@ class UnifiedIntegratedTranscriber:
             "professional": professional,
         }
 
+    def transcribe_with_gemini(self) -> bool:
+        """
+        PRIMARY transcription path: Gemini 2.0 Flash.
+        Sends full audio at once — no chunking, no preprocessing needed.
+        Handles Hindi/English/Hinglish natively with speaker labels.
+        Also extracts entities in the same call (saves Claude round-trip).
+        """
+        try:
+            logger.info("[Gemini] Starting transcription + entity extraction...")
+            from app.services.transcription.gemini_provider import GeminiTranscriptionProvider
+
+            provider = GeminiTranscriptionProvider(api_key=GEMINI_API_KEY)
+            result = provider.transcribe_and_extract(self.audio_path)
+
+            transcript = result.get("transcript", "").strip()
+            entities = result.get("entities", {})
+            audio_quality = result.get("audio_quality", "unknown")
+            confidence = result.get("confidence", "unknown")
+
+            if not transcript:
+                logger.warning("[Gemini] Returned empty transcript")
+                return False
+
+            self.raw_transcript = transcript
+            self.reconstructed_transcript = transcript  # Gemini output is already clean
+            self.entities = entities
+            self.gemini_metadata = {
+                "audio_quality": audio_quality,
+                "confidence": confidence,
+                "engine": "gemini-2.0-flash",
+            }
+
+            # Detect language from transcript content
+            devanagari_count = sum(1 for c in transcript if 'ऀ' <= c <= 'ॿ')
+            latin_count = sum(1 for c in transcript if c.isascii() and c.isalpha())
+            self.language = "HINDI" if devanagari_count > latin_count else "ENGLISH"
+
+            logger.info(f"[Gemini] Done: {len(transcript)} chars, quality={audio_quality}, lang={self.language}")
+            return True
+
+        except Exception as e:
+            logger.error(f"[Gemini] Transcription failed: {e}")
+            return False
+
     def transcribe(self, audio_path: str = None) -> List[Dict[str, Any]]:
         """
-        Main transcription method compatible with pipeline interface
-        Returns list of segments for compatibility with existing pipeline
+        Main transcription method.
+        Tries Gemini first (better quality), falls back to Groq/Whisper + Claude reconstruction.
         """
         if audio_path:
             self.audio_path = audio_path
 
-        # Run pipeline
+        engine_used = "gemini"
+
+        # Load audio metadata (duration, sr) for all paths
         if not self.load_audio():
             return []
 
-        if not self.detect_language():
-            return []
+        # ── PRIMARY: Gemini 2.0 Flash ──
+        gemini_ok = self.transcribe_with_gemini()
 
-        if self.language == "HINDI":
-            if not self.transcribe_spectral_gating_hindi():
+        if not gemini_ok:
+            # ── FALLBACK: Groq/Whisper + Claude reconstruction ──
+            logger.warning("Gemini failed — falling back to Groq/Whisper pipeline")
+            engine_used = "groq+claude"
+
+            if not self.detect_language():
                 return []
-        else:
-            if not self.transcribe_whisper_english():
+
+            if self.language == "HINDI":
+                if not self.transcribe_spectral_gating_hindi():
+                    return []
+            else:
+                if not self.transcribe_whisper_english():
+                    return []
+
+            if not self.reconstruct_transcript():
                 return []
 
-        if not self.reconstruct_transcript():
-            return []
+            if not self.extract_entities():
+                return []
 
-        if not self.extract_entities():
-            return []
-
-        # Calculate confidence metrics
+        # Confidence scoring
         from app.services.transcription.confidence_scorer import ConfidenceScorer
         confidence_metrics = ConfidenceScorer.score_transcription(
             self.raw_transcript,
@@ -537,21 +593,21 @@ class UnifiedIntegratedTranscriber:
             self.language
         )
 
-        # Convert to segments format for compatibility
-        # IMPORTANT: "text" = RAW (from Whisper/Groq), "text_reconstructed" = CLAUDE RECONSTRUCTED
         segments = [
             {
-                "text": self.raw_transcript,  # RAW from Whisper/Groq
-                "text_reconstructed": self.reconstructed_transcript,  # CLAUDE reconstructed
+                "text": self.raw_transcript,
+                "text_reconstructed": self.reconstructed_transcript,
                 "start_s": 0,
                 "end_s": self.duration or 0,
                 "speaker": "combined",
                 "language": self.language,
-                "reconstruction_applied": True,
+                "reconstruction_applied": engine_used != "gemini",
                 "entities": self.entities,
-                "confidence_metrics": confidence_metrics,  # WER, CER, BLEU, etc.
-                "validation_metrics": self.validation_metrics,  # From reconstruction validation
-                "needs_review": confidence_metrics.get("needs_review", False),  # Flag for QA
+                "confidence_metrics": confidence_metrics,
+                "validation_metrics": self.validation_metrics,
+                "needs_review": confidence_metrics.get("needs_review", False),
+                "engine": engine_used,
+                "gemini_metadata": getattr(self, "gemini_metadata", {}),
             }
         ]
 
