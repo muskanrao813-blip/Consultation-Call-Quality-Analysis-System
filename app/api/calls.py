@@ -39,6 +39,29 @@ async def bulk_upload(file: UploadFile = File(...), db: Session = Depends(get_db
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.post("/calls/upload-with-audio", response_model=ValidationReport)
+async def upload_with_audio(
+    excel_file: UploadFile = File(...),
+    audio_files: list[UploadFile] = File(default=[]),
+    db: Session = Depends(get_db)
+):
+    """
+    Upload Excel file with call metadata + audio files.
+
+    Excel must have 'recording_url' column with filenames (e.g., "call_001.wav").
+    Audio files are matched by filename and processed via Whisper + Claude CLI.
+    """
+    try:
+        ingest = IngestService(db)
+        validation_report = await ingest.validate_and_ingest_excel_with_audio(
+            excel_file, audio_files
+        )
+        return validation_report
+    except Exception as e:
+        logger.error(f"Error in audio upload: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.post("/calls/audio-upload")
 async def audio_upload(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """Upload a single audio file for transcription and QA analysis."""
@@ -80,14 +103,54 @@ async def list_calls(db: Session = Depends(get_db)):
             if rubric_scores:
                 overall_score = rubric_scores[0].overall_weighted_score
 
+            # Resolve patient name from Gemini entities if available
+            transcript = db.query(models.Transcript).filter(models.Transcript.call_id == call.id).first()
+            gemini_patient = None
+            if transcript and transcript.raw_transcript_json:
+                entities = transcript.raw_transcript_json.get("entities", {})
+                name = entities.get("customer_name", "")
+                if name and name not in ("Not mentioned", "Unknown", ""):
+                    gemini_patient = name
+
+            # Derive per-dimension scores for the list
+            scores = {"greeting": 0, "empathy": 0, "compliance": 0, "technical": 0}
+            for rs in rubric_scores:
+                dim = rs.dimension
+                if "greeting" in dim or "rapport" in dim:
+                    scores["greeting"] = round(rs.score or 0)
+                elif "empathy" in dim or "communication" in dim:
+                    scores["empathy"] = round(rs.score or 0)
+                elif "compliance" in dim or "sop" in dim or "adherence" in dim:
+                    scores["compliance"] = round(rs.score or 0)
+                elif "technical" in dim or "completeness" in dim or "action" in dim:
+                    scores["technical"] = round(rs.score or 0)
+
+            qa_flags_list = db.query(models.QAFlag).filter(models.QAFlag.call_id == call.id).all()
+            qa_alerts = [
+                {
+                    "id": f.flag_type,
+                    "title": f.flag_type.replace("_", " ").title(),
+                    "description": f.detail or "",
+                    "severity": "critical" if f.triggered else "info",
+                    "status": "active" if f.triggered else "resolved",
+                    "recordingId": str(call.id),
+                    "recordingName": call.appointment_id or f"Call {str(call.id)[:8]}",
+                    "dieticianName": call.dietician.name if call.dietician else "Unknown",
+                }
+                for f in qa_flags_list if f.triggered
+            ]
+
             result.append({
                 "id": str(call.id),
                 "dietician_name": call.dietician.name if call.dietician else "Unknown",
-                "patient_name": call.patient_name,
+                "patient_name": gemini_patient or call.patient_name or "Unknown Patient",
+                "appointment_id": call.appointment_id,
                 "call_datetime": call.call_datetime,
                 "call_duration_seconds": call.call_duration_seconds,
                 "status": call.status,
                 "overall_weighted_score": overall_score,
+                "scores": scores,
+                "qaAlerts": qa_alerts,
                 "dietician_talk_ratio_pct": metrics.dietician_talk_ratio_pct if metrics else None,
             })
 
@@ -127,11 +190,89 @@ async def get_call(call_id: str, db: Session = Depends(get_db)):
             feedback_bullets = [b.strip() for b in feedback.bullet.split("|")]
             retraining_recommended = feedback.retraining_recommended
 
+        # ── Transcript ──
+        transcript_data = {}
+        diarized_turns = []
+        gemini_entities = {}
+        if transcript and transcript.raw_transcript_json:
+            raw_json = transcript.raw_transcript_json
+            gemini_entities = raw_json.get("entities", {})
+            full_text = raw_json.get("text", "")
+            diarized_lines = raw_json.get("diarized_lines", transcript.diarized_segments or [])
+            transcript_data = {
+                "provider": transcript.provider,
+                "text": full_text,
+                "text_reconstructed": raw_json.get("text_reconstructed", full_text),
+                "engine": raw_json.get("engine", "gemini"),
+                "language": raw_json.get("language", ""),
+                "audio_quality": raw_json.get("audio_quality", ""),
+                "gemini_confidence": raw_json.get("gemini_confidence", ""),
+                "entities": gemini_entities,
+                "diarized_lines": diarized_lines,
+                # Legacy compat keys
+                "claude_reconstruction": {"text": raw_json.get("text_reconstructed", full_text)},
+                "segments": diarized_lines,
+            }
+            diarized_turns = diarized_lines
+
+        # ── Scores (from rubric_scores table) ──
+        scores_dict = {"greeting": 0, "empathy": 0, "compliance": 0, "technical": 0}
+        for rs in rubric_scores:
+            dim = rs.dimension
+            if "greeting" in dim or "rapport" in dim:
+                scores_dict["greeting"] = round(rs.score or 0)
+            elif "empathy" in dim or "communication" in dim:
+                scores_dict["empathy"] = round(rs.score or 0)
+            elif "compliance" in dim or "sop" in dim or "adherence" in dim:
+                scores_dict["compliance"] = round(rs.score or 0)
+            elif "technical" in dim or "completeness" in dim or "action" in dim:
+                scores_dict["technical"] = round(rs.score or 0)
+
+        # ── Insights (from rubric raw_llm_response or feedback bullets) ──
+        insights = {"whatWentWell": [], "areasForImprovement": [], "summary": "", "trainingGapRecs": []}
+        for rs in rubric_scores:
+            raw = rs.raw_llm_response or {}
+            if isinstance(raw, dict) and raw.get("insights"):
+                ins = raw["insights"]
+                insights["whatWentWell"] = ins.get("whatWentWell", [])
+                insights["areasForImprovement"] = ins.get("areasForImprovement", [])
+                insights["summary"] = ins.get("summary", "")
+                insights["trainingGapRecs"] = ins.get("trainingGapRecs", [])
+                break
+        if not insights["summary"] and feedback_bullets:
+            insights["summary"] = feedback_bullets[0] if feedback_bullets else ""
+
+        # ── QA Flags → FE QAAlert shape ──
+        dietician_name = call.dietician.name if call.dietician else "Unknown"
+        call_name = call.appointment_id or f"Call {str(call.id)[:8]}"
+        qa_alerts_fe = [
+            {
+                "id": f.flag_type,
+                "title": f.flag_type.replace("_", " ").title(),
+                "description": f.detail or "",
+                "severity": "critical" if f.triggered else "info",
+                "status": "active" if f.triggered else "resolved",
+                "recordingId": str(call.id),
+                "recordingName": call_name,
+                "dieticianName": dietician_name,
+            }
+            for f in qa_flags
+        ]
+
+        # ── Resolve patient name: prefer Gemini entity over Excel column ──
+        patient_name = (
+            gemini_entities.get("customer_name")
+            or call.patient_name
+            or "Unknown Patient"
+        )
+        if patient_name in ("Not mentioned", "Unknown", ""):
+            patient_name = call.patient_name or "Unknown Patient"
+
         return {
             "id": call.id,
             "dietician_id": call.dietician_id,
             "patient_id": call.patient_id,
-            "patient_name": call.patient_name,
+            "patient_name": patient_name,
             "appointment_id": call.appointment_id,
             "call_datetime": call.call_datetime,
             "recording_url": call.recording_url,
@@ -140,9 +281,7 @@ async def get_call(call_id: str, db: Session = Depends(get_db)):
             "created_at": call.created_at,
             "processed_at": call.processed_at,
             "error_message": call.error_message,
-            "transcript": {
-                "segments": transcript.diarized_segments if transcript else []
-            },
+            "transcript": transcript_data if transcript_data else {"segments": []},
             "metrics": {
                 "duration_seconds": metrics.duration_seconds if metrics else None,
                 "dietician_talk_ratio_pct": metrics.dietician_talk_ratio_pct if metrics else None,
@@ -158,23 +297,20 @@ async def get_call(call_id: str, db: Session = Depends(get_db)):
                     "dimension": rs.dimension,
                     "score": rs.score,
                     "evidence": rs.evidence,
-                    "sub_criteria": rs.sub_criteria
+                    "sub_criteria": rs.sub_criteria,
                 }
                 for rs in rubric_scores
             ],
-            "qa_flags": [
-                {
-                    "flag_type": f.flag_type,
-                    "triggered": f.triggered,
-                    "detail": f.detail
-                }
-                for f in qa_flags
-            ],
-            "feedback_notes": {
-                "bullets": feedback_bullets,
-                "retraining_recommended": retraining_recommended
-            },
+            "scores": scores_dict,                  # greeting/empathy/compliance/technical
+            "insights": insights,                   # whatWentWell/areasForImprovement/summary
+            "qa_flags": [{"flag_type": f.flag_type, "triggered": f.triggered, "detail": f.detail} for f in qa_flags],
+            "qaAlerts": qa_alerts_fe,               # FE-ready QAAlert shape
+            "entities": gemini_entities,            # Gemini-extracted entities
+            "raw_transcript": transcript_data.get("text", "") if transcript_data else "",
+            "reconstructed_transcript": transcript_data.get("text_reconstructed", "") if transcript_data else "",
+            "feedback_notes": {"bullets": feedback_bullets, "retraining_recommended": retraining_recommended},
             "overall_weighted_score": overall_weighted_score,
+            "dietician_name": dietician_name,
         }
     except HTTPException:
         raise

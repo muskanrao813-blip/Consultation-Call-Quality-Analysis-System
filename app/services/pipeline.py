@@ -514,14 +514,19 @@ def process_call(call_id: str) -> None:
             try:
                 metrics_tracker.start_stage("score_storage")
                 dimension_scores_db = {}
+                first = True
                 for dimension, data in rubric_response.get("dimension_scores", {}).items():
+                    # Store full rubric_response on the first dimension so API can read
+                    # insights, qa_alerts, sop_compliance from raw_llm_response
+                    raw = {**data, "insights": rubric_response.get("insights", {})} if first else data
+                    first = False
                     score_obj = models.RubricScore(
                         call_id=call.id,
                         dimension=dimension,
                         score=data.get("score", 0),
                         evidence=data.get("evidence", []),
                         sub_criteria=data.get("sub_criteria_met", {}),
-                        raw_llm_response=data,
+                        raw_llm_response=raw,
                     )
                     db.add(score_obj)
                     dimension_scores_db[dimension] = data.get("score", 0)
