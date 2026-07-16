@@ -27,6 +27,7 @@ export interface QAAlert {
   recordingName: string;
   dieticianName: string;
   date?: string;
+  patientName?: string;
 }
 
 export interface Recording {

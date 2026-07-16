@@ -31,6 +31,7 @@ export default function DashboardView({
   dieticians,
   searchQuery
 }: DashboardViewProps) {
+  const [showHeatmap, setShowHeatmap] = React.useState(false);
   // Stats calculations from REAL API data only
   const totalCalls = recordings.length;
   const avgQualityScore = recordings.length > 0
@@ -236,70 +237,81 @@ export default function DashboardView({
             </div>
           </div>
 
-          {/* SOP Breach Categories */}
+          {/* SOP Breach Categories — from real QA alert data */}
           <div className="lg:col-span-5 bg-white border border-[#1A1A1A]/10 rounded-none p-6 flex flex-col justify-between">
             <div>
               <h3 className="text-lg font-serif italic font-medium text-[#1A1A1A] border-b border-[#1A1A1A]/5 pb-4">SOP Breach Categories</h3>
-              <p className="text-[10px] font-sans uppercase tracking-wider text-[#1A1A1A]/50 mt-1.5">Most common compliance failures identified by AI models.</p>
+              <p className="text-[10px] font-sans uppercase tracking-wider text-[#1A1A1A]/50 mt-1.5">Most common compliance failures identified by AI, ranked by frequency.</p>
 
-              <div className="mt-6 space-y-5">
-                {/* Rule 1 */}
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-[10px] font-sans font-bold uppercase tracking-wider text-[#1A1A1A]">
-                    <span>Patient ID Verification</span>
-                    <span className="text-[#A34E36] font-mono">32%</span>
-                  </div>
-                  <div className="w-full bg-[#FAF8F6] border border-[#1A1A1A]/5 h-2.5 rounded-none overflow-hidden">
-                    <div className="bg-[#A34E36] h-full" style={{ width: '32%' }}></div>
-                  </div>
-                </div>
-
-                {/* Rule 2 */}
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-[10px] font-sans font-bold uppercase tracking-wider text-[#1A1A1A]">
-                    <span>Nutritional Guidance Limits</span>
-                    <span className="text-[#8B7E66] font-mono">18%</span>
-                  </div>
-                  <div className="w-full bg-[#FAF8F6] border border-[#1A1A1A]/5 h-2.5 rounded-none overflow-hidden">
-                    <div className="bg-[#8B7E66] h-full" style={{ width: '18%' }}></div>
-                  </div>
-                </div>
-
-                {/* Rule 3 */}
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-[10px] font-sans font-bold uppercase tracking-wider text-[#1A1A1A]">
-                    <span>Call Closing Protocol</span>
-                    <span className="text-[#8B7E66]/60 font-mono">14%</span>
-                  </div>
-                  <div className="w-full bg-[#FAF8F6] border border-[#1A1A1A]/5 h-2.5 rounded-none overflow-hidden">
-                    <div className="bg-[#8B7E66]/60 h-full" style={{ width: '14%' }}></div>
-                  </div>
-                </div>
+              <div className="mt-6 space-y-4">
+                {(() => {
+                  const allAlerts = recordings.flatMap(r => r.qaAlerts || []);
+                  const counts: Record<string, number> = {};
+                  for (const a of allAlerts) { const t = a?.title; if (t) counts[t] = (counts[t] || 0) + 1; }
+                  const total = recordings.length || 1;
+                  return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([title, count]) => {
+                    const pct = Math.round((count / total) * 100);
+                    const color = pct >= 80 ? 'bg-[#A34E36]' : pct >= 50 ? 'bg-[#8B7E66]' : 'bg-[#8B7E66]/50';
+                    const textColor = pct >= 80 ? 'text-[#A34E36]' : 'text-[#8B7E66]';
+                    return (
+                      <div key={title} className="space-y-1.5">
+                        <div className="flex justify-between text-[10px] font-sans font-bold uppercase tracking-wider text-[#1A1A1A]">
+                          <span className="truncate max-w-[200px]" title={title}>{title}</span>
+                          <span className={`font-mono ml-2 shrink-0 ${textColor}`}>{count}/{total} calls</span>
+                        </div>
+                        <div className="w-full bg-[#FAF8F6] border border-[#1A1A1A]/5 h-2 rounded-none overflow-hidden">
+                          <div className={`${color} h-full transition-all`} style={{ width: `${pct}%` }}></div>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+                {recordings.flatMap(r => r.qaAlerts || []).length === 0 && (
+                  <p className="text-xs text-[#1A1A1A]/40 italic">No breach data yet. Upload and process calls to see patterns.</p>
+                )}
               </div>
             </div>
 
             <button
-              onClick={() => {
-                try {
-                  const allAlerts = recordings.flatMap(r => r.qaAlerts || []);
-                  const top: Record<string, number> = {};
-                  for (const a of allAlerts) {
-                    const t = a?.title;
-                    if (t) top[t] = (top[t] || 0) + 1;
-                  }
-                  const sorted = Object.entries(top).sort((a, b) => b[1] - a[1]).slice(0, 8);
-                  const msg = sorted.length > 0
-                    ? sorted.map(([t, c]) => `• ${t} — ${c} occurrence${c > 1 ? 's' : ''}`).join('\n')
-                    : 'No breach data available yet.';
-                  alert(`Top SOP Breach Types (${recordings.length} calls analysed):\n\n${msg}`);
-                } catch (e) {
-                  alert('Unable to load breach data. Please try again.');
-                }
-              }}
+              onClick={() => setShowHeatmap(true)}
               className="mt-6 w-full py-3 border border-[#1A1A1A]/30 text-[#1A1A1A] text-xs font-sans uppercase tracking-widest hover:bg-[#1A1A1A] hover:text-white transition-all rounded-none cursor-pointer">
-              View Breach Heatmap
+              View All Breach Types
             </button>
           </div>
+
+          {/* Heatmap Modal */}
+          {showHeatmap && (
+            <div className="fixed inset-0 bg-[#1A1A1A]/60 z-50 flex items-center justify-center p-6" onClick={() => setShowHeatmap(false)}>
+              <div className="bg-white w-full max-w-xl max-h-[80vh] overflow-y-auto rounded-none p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-4 border-b border-[#1A1A1A]/10 pb-3">
+                  <h3 className="text-lg font-serif italic font-medium text-[#1A1A1A]">All SOP Breach Types</h3>
+                  <button onClick={() => setShowHeatmap(false)} className="text-[#1A1A1A]/40 hover:text-[#1A1A1A] text-xs font-sans uppercase tracking-wider">Close</button>
+                </div>
+                <div className="space-y-3">
+                  {(() => {
+                    const allAlerts = recordings.flatMap(r => r.qaAlerts || []);
+                    const counts: Record<string, number> = {};
+                    for (const a of allAlerts) { const t = a?.title; if (t) counts[t] = (counts[t] || 0) + 1; }
+                    const total = recordings.length || 1;
+                    return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([title, count]) => {
+                      const pct = Math.round((count / total) * 100);
+                      return (
+                        <div key={title}>
+                          <div className="flex justify-between text-[10px] font-sans font-bold uppercase tracking-wider text-[#1A1A1A] mb-1">
+                            <span className="max-w-[340px] leading-tight">{title}</span>
+                            <span className={`ml-2 shrink-0 font-mono ${pct >= 80 ? 'text-[#A34E36]' : 'text-[#8B7E66]'}`}>{count}/{total}</span>
+                          </div>
+                          <div className="w-full bg-[#FAF8F6] h-1.5">
+                            <div className={`h-full ${pct >= 80 ? 'bg-[#A34E36]' : 'bg-[#8B7E66]'}`} style={{ width: `${pct}%` }}></div>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Lower Table: Recent Call Analysis */}

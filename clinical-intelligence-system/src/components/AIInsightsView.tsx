@@ -466,19 +466,26 @@ export default function AIInsightsView({
           </div>
 
           {/* AI Auto-Summary block */}
-          <div className="p-5 bg-white border border-[#1A1A1A]/10 rounded-none relative">
-            <div className="absolute top-0 left-0 w-1 h-full bg-[#8B7E66]"></div>
-            <div className="flex items-center gap-2 mb-2.5">
-              <Sparkles className="w-4 h-4 text-[#8B7E66]" />
-              <span className="text-[9px] font-sans font-bold uppercase tracking-[0.15em] text-[#8B7E66]">AI Auto-Summary</span>
+          {activeCall.insights.summary && (
+            <div className="p-5 bg-white border border-[#1A1A1A]/10 rounded-none relative">
+              <div className="absolute top-0 left-0 w-1 h-full bg-[#8B7E66]"></div>
+              <div className="flex items-center gap-2 mb-2.5">
+                <Sparkles className="w-4 h-4 text-[#8B7E66]" />
+                <span className="text-[9px] font-sans font-bold uppercase tracking-[0.15em] text-[#8B7E66]">AI Summary</span>
+              </div>
+              <p className="text-xs font-serif leading-relaxed italic text-[#1A1A1A]/80">
+                {/* Replace Diabetes-specific labels if diabetes not mentioned in the call */}
+                {diabetesMentioned
+                  ? activeCall.insights.summary
+                  : activeCall.insights.summary
+                      .replace(/diabetes management/gi, 'health consultation')
+                      .replace(/diabetes/gi, 'health')
+                      .replace(/diabetic/gi, 'patient')
+                      .replace(/for \w+ management/gi, 'follow-up consultation')
+                }
+              </p>
             </div>
-            <p className="text-xs font-serif leading-relaxed italic text-[#1A1A1A]/80">
-              {activeCall.insights.summary}
-            </p>
-            <button className="mt-4 w-full py-2.5 border border-[#1A1A1A]/20 hover:border-[#1A1A1A] text-[#1A1A1A] text-[10px] font-sans uppercase tracking-widest rounded-none cursor-pointer transition-colors">
-              Generate Full Report
-            </button>
-          </div>
+          )}
         </section>
       </div>
 

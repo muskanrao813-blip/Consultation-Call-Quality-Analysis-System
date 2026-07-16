@@ -4,13 +4,20 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 import os
-from app.db.session import get_db
+from app.db.session import get_db, engine
+from app.db.models import Base
 from app.api import calls, dieticians, clinical_calls
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Dietician Call QA & Analysis Agent", version="0.1.0")
+
+@app.on_event("startup")
+def startup_event():
+    """Create all database tables on startup"""
+    Base.metadata.create_all(bind=engine)
+    logger.info("Database tables initialized")
 
 # Add CORS middleware - allow ALL localhost ports for development
 app.add_middleware(
@@ -88,14 +95,12 @@ def get_processing_status():
 
 @app.get("/")
 def root():
-    portal_path = os.path.join(os.path.dirname(__file__), "..", "dietician_qa_portal.html")
-    if os.path.exists(portal_path):
-        return FileResponse(portal_path, media_type="text/html")
     return {
         "name": "Dietician Call QA & Analysis Agent",
         "version": "0.1.0",
         "docs": "/docs",
-        "health": "/health"
+        "health": "/health",
+        "note": "Frontend available at http://localhost:3001"
     }
 
 

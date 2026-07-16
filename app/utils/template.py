@@ -50,7 +50,7 @@ def generate_excel_template() -> BytesIO:
         "Rajiv Singh",                                # patient_name (optional)
         "APT202401150930",                            # appointment_id
         "2024-01-15 09:30:00",                        # call_datetime (ISO or Excel format)
-        "https://example-cdn.com/calls/call_001.wav", # recording_url (direct link)
+        "call_001.wav",                               # recording_url (filename or full path)
         "1245",                                       # call_duration_seconds (optional)
     ]
 
@@ -79,13 +79,21 @@ def generate_excel_template() -> BytesIO:
         ("patient_name", "Optional. Patient name for display."),
         ("appointment_id", "Required. Unique appointment ID. Used for de-duplication — no duplicate appointment IDs will be processed."),
         ("call_datetime", "Required. Call date/time in ISO format (2024-01-15 09:30:00) or Excel date format."),
-        ("recording_url", "Required. Direct URL to the audio/video recording. Must be reachable (HTTP/HTTPS)."),
+        ("recording_url", "Required. Audio file reference: filename (e.g., call_001.wav) for local files or HTTP/HTTPS URL for remote files."),
         ("call_duration_seconds", "Optional. Call duration in seconds. If omitted, derived from transcription."),
+        ("", None),
+        ("Upload Methods", None),
+        ("", None),
+        ("Method 1: Excel Only (with URLs)", "Use /api/calls/bulk-upload with recording_url as HTTP/HTTPS links to audio files."),
+        ("Method 2: Excel + Audio Files", "Use /api/calls/upload-with-audio with Excel file + separate audio files. recording_url should be filename (e.g., 'call_001.wav')."),
         ("", None),
         ("Guidelines", None),
         ("", None),
-        ("• All URLs must be direct links to audio files (not landing pages or download links that require authentication).", None),
-        ("• Supported audio formats: MP3, WAV, OGG, WebM, and video formats (MP4, WebM).", None),
+        ("• Supported audio formats: MP3, WAV, FLAC, M4A, OGG, WebM.", None),
+        ("• For Method 1: URLs must be direct links to audio files reachable via HTTP/HTTPS.", None),
+        ("• For Method 2: Audio files are matched by filename in the recording_url column.", None),
+        ("• Whisper will transcribe all audio files automatically.", None),
+        ("• Claude CLI will analyze each call and generate: rubric scores, QA flags, feedback, and metrics.", None),
         ("• Invalid rows will be reported in the validation response before processing begins.", None),
         ("• Once a call is processed, re-uploading the same appointment_id will be rejected.", None),
         ("• Missing optional columns are acceptable; required columns must be present.", None),

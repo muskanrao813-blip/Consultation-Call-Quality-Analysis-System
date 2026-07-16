@@ -73,7 +73,7 @@ class GoogleSTTProvider(TranscriptionProvider):
             # Upload to GCS if local file
             gcs_uri = self._upload_to_gcs(audio_path) if audio_path.startswith("/") else audio_path
 
-            # Prepare recognition config
+            # Prepare recognition config with telephony model (optimized for low-quality phone audio)
             config = speech_v1.RecognitionConfig(
                 encoding=speech_v1.RecognitionConfig.AudioEncoding.AUTO,
                 language_codes=["hi-IN", "en-IN"],  # Hinglish support
@@ -83,8 +83,9 @@ class GoogleSTTProvider(TranscriptionProvider):
                     min_speaker_count=2,
                     max_speaker_count=2,
                 ),
-                model="latest_long",
+                model="phone_call",  # Telephony model for 8kHz/low-quality audio
                 use_enhanced=True,
+                enable_automatic_punctuation=True,
             )
 
             audio = speech_v1.RecognitionAudio(uri=gcs_uri)

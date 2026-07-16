@@ -127,6 +127,7 @@ async def list_calls(db: Session = Depends(get_db)):
                     scores["technical"] = round(rs.score or 0)
 
             qa_flags_list = db.query(models.QAFlag).filter(models.QAFlag.call_id == call.id).all()
+            call_date_str = call.call_datetime.strftime("%b %d, %Y") if call.call_datetime else ""
             qa_alerts = [
                 {
                     "id": f.flag_type,
@@ -137,6 +138,8 @@ async def list_calls(db: Session = Depends(get_db)):
                     "recordingId": str(call.id),
                     "recordingName": call.appointment_id or f"Call {str(call.id)[:8]}",
                     "dieticianName": call.dietician.name if call.dietician else "Unknown",
+                    "patientName": call.patient_name or "Unknown",
+                    "date": call_date_str,
                 }
                 for f in qa_flags_list if f.triggered
             ]
@@ -246,6 +249,7 @@ async def get_call(call_id: str, db: Session = Depends(get_db)):
         # ── QA Flags → FE QAAlert shape ──
         dietician_name = call.dietician.name if call.dietician else "Unknown"
         call_name = call.appointment_id or f"Call {str(call.id)[:8]}"
+        call_date = call.call_datetime.strftime("%b %d, %Y") if call.call_datetime else ""
         qa_alerts_fe = [
             {
                 "id": f.flag_type,
@@ -256,6 +260,8 @@ async def get_call(call_id: str, db: Session = Depends(get_db)):
                 "recordingId": str(call.id),
                 "recordingName": call_name,
                 "dieticianName": dietician_name,
+                "patientName": call.patient_name or "Unknown",
+                "date": call_date,
             }
             for f in qa_flags
         ]

@@ -230,9 +230,20 @@ class IngestService:
             )
 
     def _is_valid_url(self, url: str) -> bool:
-        """Basic URL validation."""
-        url_pattern = r'^https?://'
-        return bool(re.match(url_pattern, url))
+        """Validate URL or local file path."""
+        url = str(url).strip()
+        if not url:
+            return False
+        # Accept HTTP/HTTPS URLs
+        if re.match(r'^https?://', url):
+            return True
+        # Accept file paths (for audio file uploads)
+        if os.path.exists(url):
+            return True
+        # Accept simple filenames (will be matched during audio file upload)
+        if re.match(r'^[a-zA-Z0-9._\-\s]+\.(mp3|wav|flac|m4a|ogg|webm)$', url):
+            return True
+        return False
 
     def _is_supported_audio(self, filename: str) -> bool:
         """Return True for common audio formats accepted by the portal."""
@@ -360,3 +371,132 @@ class IngestService:
         thread.start()
 
         return call
+
+    async def validate_and_ingest_excel_with_audio(self, excel_file: UploadFile, audio_files: list[UploadFile]) -> ValidationReport:
+        """Parse Excel, match audio files by filename, validate rows, store calls with audio paths, queue jobs."""
+        try:
+            # Read Excel file
+            excel_content = await excel_file.read()
+            try:
+                df = pd.read_excel(io.BytesIO(excel_content))
+            except Exception:
+                df = pd.read_csv(io.BytesIO(excel_content))
+
+            if df.empty:
+                raise ValueError("Uploaded file is empty")
+
+            # Normalize column headers
+            df.columns = [
+                col.lower().strip().replace(" ", "_").replace("-", "_")
+                for col in df.columns
+            ]
+            df = self._normalize_column_names(df)
+
+            # Minimal required columns
+            required_cols = {"dietician_name", "appointment_id", "recording_url"}
+            provided_cols = set(df.columns)
+            missing_cols = required_cols - provided_cols
+            if missing_cols:
+                raise ValueError(f"Missing required columns: {missing_cols}")
+
+            # Auto-fill optional columns if not provided
+            if "patient_id" not in df.columns:
+                df["patient_id"] = df["appointment_id"]
+            if "call_datetime" not in df.columns:
+                df["call_datetime"] = datetime.utcnow()
+            if "patient_name" not in df.columns:
+                df["patient_name"] = "Unknown"
+
+            # Create a map of audio filenames to file objects
+            audio_map = {}
+            if audio_files:
+                for audio_file in audio_files:
+                    if audio_file and audio_file.filename:
+                        audio_map[audio_file.filename] = audio_file
+
+            # Save audio files to temp directory
+            audio_storage_path = os.path.join(tempfile.gettempdir(), "dietician_qa_audio")
+            os.makedirs(audio_storage_path, exist_ok=True)
+
+            saved_audio_files = {}
+            for filename, audio_file in audio_map.items():
+                try:
+                    audio_content = await audio_file.read()
+                    safe_path = os.path.join(audio_storage_path, filename)
+                    with open(safe_path, "wb") as f:
+                        f.write(audio_content)
+                    saved_audio_files[filename] = safe_path
+                    logger.info(f"Saved audio file: {filename} -> {safe_path}")
+                except Exception as e:
+                    logger.error(f"Error saving audio file {filename}: {e}")
+
+            validation_rows = []
+            valid_calls = []
+
+            for idx, row in df.iterrows():
+                row_num = idx + 2
+                recording_filename = str(row.get("recording_url", "")).strip()
+
+                # Check if audio file exists
+                if recording_filename not in saved_audio_files:
+                    validation_rows.append(ValidationReportRow(
+                        row_num=row_num,
+                        status="invalid",
+                        reason=f"Audio file not found: {recording_filename}"
+                    ))
+                    continue
+
+                # Update row with actual audio path
+                row_data = row.copy()
+                row_data["recording_url"] = saved_audio_files[recording_filename]
+
+                row_validation = self._validate_row(row_data, provided_cols, row_num)
+                if row_validation.status == "valid":
+                    valid_calls.append((row_data, row_num))
+
+                validation_rows.append(row_validation)
+
+            # Store batch metadata
+            batch = models.UploadBatch(
+                uploaded_by="system",
+                original_filename=excel_file.filename,
+                file_blob=excel_content,
+                total_rows=len(df),
+                valid_rows=len(valid_calls),
+                invalid_rows=len(df) - len(valid_calls),
+            )
+            self.db.add(batch)
+            self.db.flush()
+
+            # Create Call records
+            created_call_ids = []
+            for row, row_num in valid_calls:
+                call = self._create_call_from_row(row, batch.id, row_num)
+                self.db.add(call)
+                self.db.flush()
+                created_call_ids.append((call.id, row_num))
+
+            self.db.commit()
+
+            # Queue processing jobs in background thread
+            def process_all_calls():
+                for call_id, row_num in created_call_ids:
+                    try:
+                        self._process_call_async(str(call_id))
+                    except Exception as e:
+                        logger.error(f"Error processing call {call_id}: {e}")
+
+            thread = threading.Thread(target=process_all_calls)
+            thread.daemon = True
+            thread.start()
+
+            return ValidationReport(
+                total_rows=len(df),
+                valid_rows=len(valid_calls),
+                invalid_rows=len(df) - len(valid_calls),
+                rows=validation_rows,
+                batch_id=batch.id,
+            )
+        except Exception as e:
+            logger.error(f"Error in Excel with audio validation: {e}")
+            raise

@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 def download_audio(recording_url: str, max_retries: int = 3, timeout: int = 30) -> str:
-    """Download audio from URL or reuse a locally uploaded file path. Returns local path."""
+    """Download audio from URL or copy a locally uploaded file path. Returns local path."""
     try:
         if recording_url.startswith(("http://", "https://")):
             for attempt in range(max_retries):
@@ -50,8 +50,22 @@ def download_audio(recording_url: str, max_retries: int = 3, timeout: int = 30) 
         if os.path.exists(recording_url):
             resolved_path = os.path.abspath(recording_url)
             if os.path.isfile(resolved_path):
-                logger.info(f"Using local audio file: {resolved_path}")
-                return resolved_path
+                logger.info(f"Local file found: {resolved_path}, copying to temp...")
+                # Copy the file to temp directory to avoid Windows file lock issues
+                import shutil
+                import uuid
+                temp_dir = tempfile.gettempdir()
+                _, ext = os.path.splitext(resolved_path)
+                temp_filename = f"audio_{uuid.uuid4()}{ext}"
+                temp_path = os.path.join(temp_dir, temp_filename)
+
+                shutil.copy2(resolved_path, temp_path)
+                logger.info(f"Copied local file to: {temp_path} ({os.path.getsize(temp_path)} bytes)")
+
+                if not os.path.exists(temp_path):
+                    raise FileNotFoundError(f"Temp copy not created: {temp_path}")
+
+                return temp_path
             raise ValueError(f"Path is not a file: {recording_url}")
 
         raise ValueError(f"Invalid audio source: {recording_url}")

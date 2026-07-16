@@ -1,0 +1,36 @@
+[
+  {
+    "label": "Call 1 (19s)",
+    "transcript": "[Dietician]: Hello.\n[Customer]: Hello, Ashish ji bol rahe hain sir?\n[Dietician]: Haan ji boliye.\n[Customer]: Ya, aapne TVS Bajaj mein health consultation book kiya tha na, uske liye call kar rahe the. Aapko health ki koi dikkat hai ya koi...",
+    "entities": {
+      "customer_name": "Ashish",
+      "dietician_name": null,
+      "organization": "Bajaj Finserv Health",
+      "call_purpose": "To follow up on a health consultation booking made by the customer.",
+      "health_status": "Not provided",
+      "appointment_details": "TVS Bajaj health consultation",
+      "action_items": "Inquire about health status/concerns",
+      "call_language": "Hinglish",
+      "call_outcome": "Pending"
+    },
+    "audio_quality": "good",
+    "confidence": "high"
+  },
+  {
+    "label": "Call 2 (41s)",
+    "transcript": "[Dietician]: हेलो, उमेश रमेश जी बोल रहे हैं सर?\n[Customer]: जी।\n[Dietician]: आपने टी.वी.एस. बजाज (TVS Bajaj) में डॉक्टर कंसल्टेशन बुक करा था ना, उसके लिए कॉल करें हैं। आपको हेल्थ के कोई दिक्कत है या कोई एडवाइस चाहिए, ठीक है?\n[Customer]: नहीं-नहीं, वो सब ठीक है मेरा तो।\n[Dietician]: ठीक है। बहुत अच्छी बात है। हम जनरल गाइडलाइन भेज रहे हैं हेल्थ के लिए वो व्हाट्सएप पर आएगी। थैंक यू।\n[Customer]: थैंक यू।",
+    "entities": {
+      "customer_name": "Umesh Ramesh",
+      "dietician_name": null,
+      "organization": "Bajaj Finserv Health",
+      "call_purpose": "To follow up on a booked doctor consultation and check the patient's health status.",
+      "health_status": "The customer stated that everything is fine.",
+      "appointment_details": "TVS Bajaj doctor consultation",
+      "action_items": "Dietician to send health guidelines via WhatsApp.",
+      "call_language": "Hinglish",
+      "call_outcome": "Resolved"
+    },
+    "audio_quality": "good",
+    "confidence": "high"
+  }
+]
