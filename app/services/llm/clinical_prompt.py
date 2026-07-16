@@ -36,7 +36,12 @@ def create_clinical_analysis_prompt(transcript: str, metrics: dict, patient_cond
         Formatted prompt for Claude CLI analysis
     """
 
-    return f"""You are a clinical quality assurance specialist reviewing a Bajaj Finserv Health dietician call for {patient_condition} management.
+    condition_context = f"for {patient_condition} management" if patient_condition not in ("General Health", "") else "for general health guidance"
+    return f"""You are a clinical quality assurance specialist reviewing a Bajaj Finserv Health dietician follow-up call {condition_context}.
+
+IMPORTANT: Only evaluate and flag conditions that are EXPLICITLY mentioned in the transcript.
+Do NOT assume or infer any medical condition (diabetes, hypertension, etc.) unless the patient or dietician directly mentions it.
+If the transcript is a short check-in or follow-up call, evaluate accordingly — do not expect a full consultation SOP.
 
 TRANSCRIPT FORMAT:
 - [Dietician]: lines are spoken by the Bajaj Finserv Health dietician/agent making the call

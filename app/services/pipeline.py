@@ -467,7 +467,25 @@ def process_call(call_id: str) -> None:
                 }
 
                 try:
-                    patient_condition = getattr(call, 'patient_condition', None) or "Diabetes"
+                    # Detect condition from Gemini entities or transcript — never assume
+                    gemini_ents = {}
+                    tr_obj = db.query(models.Transcript).filter(models.Transcript.call_id == call.id).first()
+                    if tr_obj and tr_obj.raw_transcript_json:
+                        gemini_ents = tr_obj.raw_transcript_json.get("entities", {})
+                    transcript_text = " ".join(
+                        seg.get("text", "") for seg in (tr_obj.diarized_segments or [])
+                    ).lower() if tr_obj else ""
+                    # Only label as a specific condition if explicitly mentioned
+                    if "diabet" in transcript_text:
+                        patient_condition = "Diabetes"
+                    elif "bp" in transcript_text or "blood pressure" in transcript_text or "hypertension" in transcript_text:
+                        patient_condition = "Hypertension"
+                    elif "cholesterol" in transcript_text:
+                        patient_condition = "Cholesterol Management"
+                    elif "weight" in transcript_text or "obesity" in transcript_text:
+                        patient_condition = "Weight Management"
+                    else:
+                        patient_condition = getattr(call, 'patient_condition', None) or "General Health"
 
                     logger.info(f"[LLM] Step 4a: Calling {LLMProvider.__name__}.analyze_all_dimensions()")
                     logger.info(f"   - Segments: {len(segments)}")

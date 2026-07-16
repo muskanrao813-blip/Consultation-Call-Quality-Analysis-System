@@ -55,14 +55,21 @@ export default function DashboardView({
     );
   });
 
-  // Performance data from REAL recordings
-  const performanceDist = recordings.length > 0
-    ? recordings.slice(0, 6).map((r, idx) => ({
-        name: r.agentName.split(' ')[0] || `Agent ${idx + 1}`,
-        score: r.sopComplianceScore || 0,
-        peerMedian: 85
-      }))
-    : [];
+  // Performance data — one bar per DIETICIAN (aggregated average), not per recording
+  const performanceDist = (() => {
+    const byDietician: Record<string, number[]> = {};
+    recordings.forEach(r => {
+      const name = r.agentName || 'Unknown';
+      if (!byDietician[name]) byDietician[name] = [];
+      byDietician[name].push(r.sopComplianceScore || 0);
+    });
+    return Object.entries(byDietician).map(([name, scores]) => ({
+      name: name.split(' ')[0],
+      score: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length),
+      calls: scores.length,
+      peerMedian: 60,
+    }));
+  })();
 
   return (
     <div className="flex-1 flex overflow-hidden bg-[#F7F3F0] h-full select-none">
@@ -216,8 +223,9 @@ export default function DashboardView({
                         style={{ height: `${item.score}%` }}
                       >
                         {/* Tooltip on hover */}
-                        <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-[#1A1A1A] text-white text-[9px] font-mono font-bold px-2 py-1 rounded-none whitespace-nowrap z-30 shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none">
-                          Score: {item.score}%
+                        <div className="absolute -top-14 left-1/2 -translate-x-1/2 bg-[#1A1A1A] text-white text-[9px] font-mono font-bold px-2 py-1 rounded-none whitespace-nowrap z-30 shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none text-center">
+                          <div>Score: {item.score}%</div>
+                          <div className="text-[#8B7E66]">{(item as any).calls} calls</div>
                         </div>
                       </div>
                     </div>
@@ -270,7 +278,17 @@ export default function DashboardView({
               </div>
             </div>
 
-            <button className="mt-6 w-full py-3 border border-[#1A1A1A]/30 text-[#1A1A1A] text-xs font-sans uppercase tracking-widest hover:bg-[#1A1A1A] hover:text-white transition-all rounded-none cursor-pointer">
+            <button
+              onClick={() => {
+                const top = recordings.flatMap(r => r.qaAlerts || [])
+                  .reduce((acc: Record<string, number>, a) => {
+                    acc[a.title] = (acc[a.title] || 0) + 1; return acc;
+                  }, {});
+                const msg = Object.entries(top).sort((a,b) => b[1]-a[1]).slice(0,5)
+                  .map(([t, c]) => `• ${t} (${c} alerts)`).join('\n');
+                alert('Top SOP Breach Types:\n\n' + (msg || 'No breaches recorded'));
+              }}
+              className="mt-6 w-full py-3 border border-[#1A1A1A]/30 text-[#1A1A1A] text-xs font-sans uppercase tracking-widest hover:bg-[#1A1A1A] hover:text-white transition-all rounded-none cursor-pointer">
               View Breach Heatmap
             </button>
           </div>
@@ -355,7 +373,7 @@ export default function DashboardView({
 
           <div className="p-4 bg-[#FAF8F6] border-t border-[#1A1A1A]/10 text-center">
             <span className="text-[10px] text-[#8B7E66] hover:text-[#1A1A1A] cursor-pointer font-sans uppercase tracking-widest flex items-center justify-center gap-1">
-              <span>View All Analyzed Calls (248 Active)</span>
+              <span>Showing All {totalCalls} Analysed Calls</span>
               <ChevronRight className="w-3.5 h-3.5" />
             </span>
           </div>
