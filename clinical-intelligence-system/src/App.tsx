@@ -177,6 +177,7 @@ export default function App() {
           settings={settings}
           searchQuery={searchQuery}
           onSearchQueryChange={setSearchQuery}
+          criticalAlerts={allQAAlerts}
         />
 
         {/* Show API loading/error state */}
