@@ -178,15 +178,20 @@ export async function fetchDieticianReports(): Promise<{ dieticians: any[]; trai
     if (!response.ok) throw new Error(`Failed to fetch dieticians: ${response.status}`);
     const data: any[] = await response.json();
 
-    const dieticians = data.map((d: any) => d.dietician);
-    // Deduplicate training gaps by title across all dieticians
+    // Attach qaAlerts to each dietician object so DieticianReportsView can use them
+    const dieticians = data.map((d: any) => ({
+      ...d.dietician,
+      qaAlerts: d.qaAlerts || [],
+    }));
+
+    // Deduplicate training gaps by title
     const seen = new Set<string>();
     const trainingGaps: any[] = [];
     for (const d of data) {
       for (const gap of d.trainingGaps || []) {
         if (!seen.has(gap.title)) {
           seen.add(gap.title);
-          trainingGaps.push(gap);
+          trainingGaps.push({ ...gap, id: gap.title });
         }
       }
     }

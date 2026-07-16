@@ -360,7 +360,9 @@ async def list_dieticians(db: Session = Depends(get_db)):
                 continue
 
             scores_all = []
-            sop_breaches = 0
+            compliance_scores = []
+            # alert_title -> set of call IDs where it appears
+            alert_call_map: dict = {}
             training_gaps = []
 
             for call in calls:
@@ -370,13 +372,25 @@ async def list_dieticians(db: Session = Depends(get_db)):
                 if rubric_scores:
                     overall = rubric_scores[0].overall_weighted_score or 0
                     scores_all.append(overall)
+                    # compliance dimension score for SOP %
+                    for rs in rubric_scores:
+                        if rs.dimension == "compliance":
+                            compliance_scores.append(rs.score or 0)
+                            break
 
-                # Count triggered QA flags as breaches
+                # Aggregate triggered QA flags by title across calls
                 flags = db.query(models.QAFlag).filter(
                     models.QAFlag.call_id == call.id,
                     models.QAFlag.triggered == True
-                ).count()
-                sop_breaches += flags
+                ).all()
+                for flag in flags:
+                    title = flag.flag_type
+                    if title not in alert_call_map:
+                        alert_call_map[title] = {
+                            "call_ids": set(),
+                            "detail": flag.detail or "",
+                        }
+                    alert_call_map[title]["call_ids"].add(str(call.id))
 
                 # Pull training gaps from first rubric score's raw_llm_response
                 seen_gap_titles = {g["title"] for g in training_gaps}
@@ -400,14 +414,38 @@ async def list_dieticians(db: Session = Depends(get_db)):
                             })
                     break
 
-            avg_score = round(sum(scores_all) / len(scores_all), 1) if scores_all else 0
-            # Trend: simulate from last 5 call scores for sparkline
+            total_calls = len(calls)
+            avg_score = round(sum(scores_all) / total_calls, 1) if scores_all else 0
+            avg_compliance = round(sum(compliance_scores) / len(compliance_scores), 1) if compliance_scores else 0
+
             trend_vals = [round(s / 10, 1) for s in scores_all[-5:]] if scores_all else [5, 5, 5, 5, 5]
             while len(trend_vals) < 5:
                 trend_vals.insert(0, trend_vals[0] if trend_vals else 5)
 
-            trend_direction = "up" if len(scores_all) > 1 and scores_all[-1] > scores_all[0] else "down" if len(scores_all) > 1 and scores_all[-1] < scores_all[0] else "flat"
-            ai_status = "Exceeding Goals" if avg_score >= 80 else "Training Required" if avg_score < 50 else "Target Met"
+            trend_direction = (
+                "up" if len(scores_all) > 1 and scores_all[-1] > scores_all[0]
+                else "down" if len(scores_all) > 1 and scores_all[-1] < scores_all[0]
+                else "flat"
+            )
+            ai_status = (
+                "Exceeding Goals" if avg_score >= 80
+                else "Training Required" if avg_score < 40
+                else "Target Met"
+            )
+
+            # Build aggregated QA alerts: each unique title + how many calls it appeared in
+            aggregated_alerts = []
+            for title, info in sorted(alert_call_map.items(), key=lambda x: -len(x[1]["call_ids"])):
+                call_count = len(info["call_ids"])
+                aggregated_alerts.append({
+                    "id": title,
+                    "title": title,
+                    "description": info["detail"],
+                    "callCount": call_count,
+                    "totalCalls": total_calls,
+                    "callFrequency": f"{call_count}/{total_calls} calls",
+                    "severity": "critical" if call_count == total_calls else "warning" if call_count > 1 else "info",
+                })
 
             result.append({
                 "dietician": {
@@ -416,13 +454,16 @@ async def list_dieticians(db: Session = Depends(get_db)):
                     "initials": "".join(w[0].upper() for w in dietician.name.split()[:2]),
                     "role": "Clinical Dietician",
                     "avgScore": avg_score,
+                    "avgComplianceScore": avg_compliance,
                     "trend": f"+{avg_score:.0f}%" if trend_direction == "up" else f"{avg_score:.0f}%",
                     "trendDirection": trend_direction,
                     "trendValues": trend_vals,
-                    "sopBreaches": sop_breaches,
+                    "sopBreaches": len([a for a in aggregated_alerts if a["severity"] == "critical"]),
+                    "totalAlertTypes": len(aggregated_alerts),
                     "aiStatus": ai_status,
-                    "totalCalls": len(calls),
+                    "totalCalls": total_calls,
                 },
+                "qaAlerts": aggregated_alerts,
                 "trainingGaps": training_gaps,
             })
 

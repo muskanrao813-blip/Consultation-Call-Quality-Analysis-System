@@ -177,25 +177,22 @@ class ClinicalAnalyzer(LLMProvider):
         compliance_score = sop.get("compliance_score", 0)
         sop_compliant = sop.get("compliant", True)
 
-        # Transform SOP violations to QA alerts if not already done
+        # Use Claude's qa_alerts directly — deduplicated by title
+        # Do NOT also add violation-based alerts separately (that creates duplicates
+        # since Claude's qa_alerts already contain all SOP violations)
+        seen_titles = set()
         qa_alerts = []
         for alert in alerts:
+            title = (alert.get("title") or "").strip()
+            if not title or title in seen_titles:
+                continue
+            seen_titles.add(title)
             qa_alerts.append({
-                "title": alert.get("title"),
-                "description": alert.get("description"),
+                "title": title,
+                "description": alert.get("description", ""),
                 "severity": alert.get("severity", "info"),
-                "status": "active"
+                "status": "active",
             })
-
-        # Add violation-based alerts
-        for violation in sop.get("violations", []):
-            if violation.get("violated"):
-                qa_alerts.append({
-                    "title": f"SOP Violation: {violation.get('check')}",
-                    "description": violation.get("evidence", ""),
-                    "severity": "critical",
-                    "status": "active"
-                })
 
         return {
             "dimension_scores": {

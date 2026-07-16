@@ -57,17 +57,31 @@ export interface Recording {
   };
 }
 
+export interface DieticianQAAlert {
+  id: string;
+  title: string;
+  description: string;
+  callCount: number;
+  totalCalls: number;
+  callFrequency: string;   // e.g. "5/6 calls"
+  severity: 'critical' | 'warning' | 'info';
+}
+
 export interface Dietician {
   id: string;
   initials: string;
   name: string;
   role: string;
   avgScore: number;
+  avgComplianceScore?: number;
   trend: string;
   trendDirection: 'up' | 'down' | 'flat';
-  trendValues: number[]; // Array of heights for sparklines/trends
+  trendValues: number[];
   sopBreaches: number;
+  totalAlertTypes?: number;
+  totalCalls?: number;
   aiStatus: 'Exceeding Goals' | 'Training Required' | 'Stability Alert' | 'Target Met';
+  qaAlerts?: DieticianQAAlert[];
 }
 
 export interface TrainingGap {
