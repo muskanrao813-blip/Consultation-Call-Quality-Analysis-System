@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   TrendingUp,
   TrendingDown,
@@ -14,7 +14,9 @@ import {
   CheckCircle,
   XCircle,
   HelpCircle,
-  ExternalLink
+  ExternalLink,
+  Calendar,
+  Download
 } from 'lucide-react';
 import { Recording, Dietician } from '../types';
 
@@ -31,21 +33,37 @@ export default function DashboardView({
   dieticians,
   searchQuery
 }: DashboardViewProps) {
-  const [showHeatmap, setShowHeatmap] = React.useState(false);
-  // Stats calculations from REAL API data only
-  const totalCalls = recordings.length;
-  const avgQualityScore = recordings.length > 0
-    ? Math.round((recordings.reduce((sum, r) => sum + (r.sopComplianceScore || 0), 0) / recordings.length) * 10) / 10
-    : 0;
-  // SOP Compliance % = average of the compliance dimension score across all calls (0-100)
-  const sopCompliance = recordings.length > 0
-    ? Math.round(recordings.reduce((sum, r) => sum + (r.scores?.compliance || 0), 0) / recordings.length)
-    : 0;
-  const criticalAlertsCount = recordings.reduce((sum, r) => {
-    return sum + (r.qaAlerts?.filter(a => a.severity === 'critical').length || 0);
-  }, 0);
+  const [showHeatmap, setShowHeatmap] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const today = new Date().toISOString().split('T')[0];
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const [dateFrom, setDateFrom] = useState(thirtyDaysAgo);
+  const [dateTo, setDateTo] = useState(today);
+  // Stats use dateFilteredRecordings (respects the calendar selection)
+  // These are declared after dateFilteredRecordings below — hoisted by JS but defined after jsx starts
+  // We'll compute after date filter is set up in render flow
 
-  const filteredRecordings = recordings.filter((r) => {
+  // Date-filtered recordings (for stats + charts)
+  const dateFilteredRecordings = recordings.filter(r => {
+    if (!r.date) return true;
+    try {
+      const callDate = new Date(r.date).toISOString().split('T')[0];
+      return callDate >= dateFrom && callDate <= dateTo;
+    } catch { return true; }
+  });
+
+  // Stats from date-filtered data
+  const totalCalls = dateFilteredRecordings.length;
+  const avgQualityScore = totalCalls > 0
+    ? Math.round((dateFilteredRecordings.reduce((sum, r) => sum + (r.sopComplianceScore || 0), 0) / totalCalls) * 10) / 10
+    : 0;
+  const sopCompliance = totalCalls > 0
+    ? Math.round(dateFilteredRecordings.reduce((sum, r) => sum + (r.scores?.compliance || 0), 0) / totalCalls)
+    : 0;
+  const criticalAlertsCount = dateFilteredRecordings.reduce((sum, r) =>
+    sum + (r.qaAlerts?.filter(a => a.severity === 'critical').length || 0), 0);
+
+  const filteredRecordings = dateFilteredRecordings.filter((r) => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return (
@@ -56,10 +74,81 @@ export default function DashboardView({
     );
   });
 
-  // Performance data — one bar per DIETICIAN (aggregated average), not per recording
+  const exportPDF = () => {
+    const byDietician: Record<string, Recording[]> = {};
+    dateFilteredRecordings.forEach(r => {
+      const d = r.agentName || 'Unknown';
+      if (!byDietician[d]) byDietician[d] = [];
+      byDietician[d].push(r);
+    });
+
+    const html = `<!DOCTYPE html><html><head>
+<title>Dietician QA Report — ${dateFrom} to ${dateTo}</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 30px; color: #1A1A1A; font-size: 12px; }
+  h1 { font-size: 22px; font-weight: bold; margin-bottom: 4px; }
+  h2 { font-size: 16px; margin-top: 28px; margin-bottom: 8px; border-bottom: 2px solid #1A1A1A; padding-bottom: 4px; }
+  h3 { font-size: 13px; margin: 14px 0 4px; }
+  .meta { color: #555; font-size: 11px; margin-bottom: 20px; }
+  .call-card { border: 1px solid #ddd; padding: 12px; margin-bottom: 12px; page-break-inside: avoid; }
+  .scores { display: flex; gap: 20px; margin: 8px 0; }
+  .score-item { text-align: center; }
+  .score-val { font-size: 18px; font-weight: bold; }
+  .score-lbl { font-size: 10px; color: #777; text-transform: uppercase; }
+  .alert { background: #fff0ee; border-left: 3px solid #c0392b; padding: 6px 10px; margin: 4px 0; font-size: 11px; }
+  .good { color: #27ae60; } .bad { color: #c0392b; }
+  ul { margin: 4px 0; padding-left: 18px; }
+  li { margin: 2px 0; }
+  .transcript-line { margin: 3px 0; font-size: 11px; }
+  .dietician-speaker { color: #2980b9; }
+  .customer-speaker { color: #8e44ad; }
+  @media print { .call-card { break-inside: avoid; } }
+</style></head><body>
+<h1>Dietician QA Analysis Report</h1>
+<div class="meta">Period: ${dateFrom} to ${dateTo} | Generated: ${new Date().toLocaleString()} | Total Calls: ${dateFilteredRecordings.length}</div>
+${Object.entries(byDietician).map(([dietician, calls]) => {
+  const avgScore = Math.round(calls.reduce((s, c) => s + (c.sopComplianceScore || 0), 0) / calls.length);
+  const critCount = calls.reduce((s, c) => s + (c.qaAlerts?.filter(a => a.severity === 'critical').length || 0), 0);
+  return `<h2>Dietician: ${dietician}</h2>
+<p><strong>Total Calls:</strong> ${calls.length} &nbsp;|&nbsp; <strong>Avg Score:</strong> ${avgScore}% &nbsp;|&nbsp; <strong>Critical Alerts:</strong> ${critCount}</p>
+${calls.map(call => {
+  const s = (call.scores || {}) as any;
+  const ins = (call.insights || {}) as any;
+  const alerts = (call.qaAlerts || []).filter(a => a.severity === 'critical').slice(0, 5);
+  const transcript = (call.transcript || []).slice(0, 15);
+  return `<div class="call-card">
+  <h3>${call.patientName} — ${call.date} (${call.duration})</h3>
+  <div class="scores">
+    <div class="score-item"><div class="score-val ${(call.sopComplianceScore||0) >= 60 ? 'good' : 'bad'}">${call.sopComplianceScore || 0}%</div><div class="score-lbl">Overall</div></div>
+    <div class="score-item"><div class="score-val">${s.greeting || 0}%</div><div class="score-lbl">Greeting</div></div>
+    <div class="score-item"><div class="score-val">${s.empathy || 0}%</div><div class="score-lbl">Empathy</div></div>
+    <div class="score-item"><div class="score-val ${(s.compliance||0) >= 50 ? '' : 'bad'}">${s.compliance || 0}%</div><div class="score-lbl">Compliance</div></div>
+    <div class="score-item"><div class="score-val">${s.technical || 0}%</div><div class="score-lbl">Technical</div></div>
+  </div>
+  ${alerts.length > 0 ? `<p><strong>Critical Alerts:</strong></p>${alerts.map(a => `<div class="alert">${a.title}${a.description ? ` — ${a.description.substring(0, 120)}` : ''}</div>`).join('')}` : ''}
+  ${ins.whatWentWell?.length ? `<p><strong>What Went Well:</strong></p><ul>${ins.whatWentWell.slice(0,3).map((p: string) => `<li class="good">${p}</li>`).join('')}</ul>` : ''}
+  ${ins.areasForImprovement?.length ? `<p><strong>Areas for Improvement:</strong></p><ul>${ins.areasForImprovement.slice(0,3).map((p: string) => `<li class="bad">${p}</li>`).join('')}</ul>` : ''}
+  ${transcript.length > 0 ? `<p><strong>Transcript (first 15 turns):</strong></p>${transcript.map(t => {
+    const isDiet = (t.speaker as string) === 'agent' || (t.speaker as string) === 'dietician';
+    return `<div class="transcript-line"><span class="${isDiet ? 'dietician-speaker' : 'customer-speaker'}">[${isDiet ? 'Dietician' : 'Customer'}]</span> ${t.text}</div>`;
+  }).join('')}` : ''}
+</div>`;
+}).join('')}`;
+}).join('')}
+</body></html>`;
+
+    const win = window.open('', '_blank');
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+      setTimeout(() => win.print(), 500);
+    }
+  };
+
+  // Performance data — one bar per DIETICIAN, date-filtered
   const performanceDist = (() => {
     const byDietician: Record<string, number[]> = {};
-    recordings.forEach(r => {
+    dateFilteredRecordings.forEach(r => {
       const name = r.agentName || 'Unknown';
       if (!byDietician[name]) byDietician[name] = [];
       byDietician[name].push(r.sopComplianceScore || 0);
@@ -85,11 +174,51 @@ export default function DashboardView({
               Real-time health of clinical consultations and dietician performance.
             </p>
           </div>
-          <div className="flex gap-3">
-            <button className="px-4 py-2 text-xs font-sans uppercase tracking-wider border border-[#1A1A1A]/20 bg-white text-[#1A1A1A] hover:bg-[#F7F3F0] rounded-none flex items-center gap-2 cursor-pointer transition-colors">
-              <span>Last 30 Days</span>
-            </button>
-            <button className="px-4 py-2 text-xs font-sans uppercase tracking-wider bg-[#1A1A1A] text-white hover:bg-[#8B7E66] rounded-none flex items-center gap-2 cursor-pointer transition-all">
+          <div className="flex gap-3 items-center relative">
+            {/* Date range picker */}
+            <div className="relative">
+              <button
+                onClick={() => setShowDatePicker(v => !v)}
+                className="px-4 py-2 text-xs font-sans uppercase tracking-wider border border-[#1A1A1A]/20 bg-white text-[#1A1A1A] hover:bg-[#F7F3F0] rounded-none flex items-center gap-2 cursor-pointer transition-colors"
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                <span>{dateFrom} — {dateTo}</span>
+              </button>
+              {showDatePicker && (
+                <div className="absolute right-0 top-full mt-1 bg-white border border-[#1A1A1A]/15 shadow-xl z-50 p-4 space-y-3 w-64">
+                  <div>
+                    <label className="text-[10px] font-sans font-bold uppercase tracking-wider text-[#1A1A1A]/60 block mb-1">From</label>
+                    <input type="date" value={dateFrom} max={dateTo} onChange={e => setDateFrom(e.target.value)}
+                      className="w-full border border-[#1A1A1A]/15 px-3 py-1.5 text-xs focus:outline-none focus:border-[#8B7E66]" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-sans font-bold uppercase tracking-wider text-[#1A1A1A]/60 block mb-1">To</label>
+                    <input type="date" value={dateTo} min={dateFrom} max={today} onChange={e => setDateTo(e.target.value)}
+                      className="w-full border border-[#1A1A1A]/15 px-3 py-1.5 text-xs focus:outline-none focus:border-[#8B7E66]" />
+                  </div>
+                  <div className="flex gap-2">
+                    {[['7d', 7], ['30d', 30], ['90d', 90]].map(([label, days]) => (
+                      <button key={label} onClick={() => {
+                        const f = new Date(Date.now() - (days as number) * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                        setDateFrom(f); setDateTo(today);
+                      }} className="flex-1 py-1.5 text-[10px] font-sans uppercase tracking-wider border border-[#1A1A1A]/15 hover:bg-[#FAF8F6] cursor-pointer">
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <button onClick={() => setShowDatePicker(false)}
+                    className="w-full py-2 bg-[#1A1A1A] text-white text-[10px] font-sans uppercase tracking-wider hover:bg-[#8B7E66] cursor-pointer">
+                    Apply
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={exportPDF}
+              className="px-4 py-2 text-xs font-sans uppercase tracking-wider bg-[#1A1A1A] text-white hover:bg-[#8B7E66] rounded-none flex items-center gap-2 cursor-pointer transition-all"
+            >
+              <Download className="w-3.5 h-3.5" />
               <span>Export PDF</span>
             </button>
           </div>

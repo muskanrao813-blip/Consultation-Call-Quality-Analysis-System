@@ -57,7 +57,7 @@ export default function QAAlertsView({
   });
 
   return (
-    <div className="flex-grow overflow-y-auto custom-scrollbar p-8 space-y-8 bg-[#F7F3F0] select-none">
+    <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-8 space-y-8 bg-[#F7F3F0] select-none h-full">
       {/* Header section */}
       <section className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#1A1A1A]/10 pb-6">
         <div>

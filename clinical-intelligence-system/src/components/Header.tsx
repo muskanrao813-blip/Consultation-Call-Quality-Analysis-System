@@ -1,20 +1,23 @@
-import React from 'react';
-import { Search, Bell, HelpCircle } from 'lucide-react';
-import { SystemSettings } from '../types';
+import React, { useState } from 'react';
+import { Search, Bell, HelpCircle, X } from 'lucide-react';
+import { SystemSettings, QAAlert } from '../types';
 
 interface HeaderProps {
   currentView: string;
   settings: SystemSettings;
   searchQuery: string;
   onSearchQueryChange: (query: string) => void;
+  criticalAlerts?: QAAlert[];
 }
 
 export default function Header({
   currentView,
   settings,
   searchQuery,
-  onSearchQueryChange
+  onSearchQueryChange,
+  criticalAlerts = [],
 }: HeaderProps) {
+  const [showNotifs, setShowNotifs] = useState(false);
   // Get contextual header title or search placeholder
   const getSearchPlaceholder = () => {
     switch (currentView) {
@@ -69,8 +72,13 @@ export default function Header({
             value={searchQuery}
             onChange={(e) => onSearchQueryChange(e.target.value)}
             placeholder={getSearchPlaceholder()}
-            className="w-full bg-transparent border-b border-[#1A1A1A]/10 pl-7 pr-2 py-1 text-xs text-[#1A1A1A] placeholder:text-[#1A1A1A]/40 focus:outline-none focus:border-[#8B7E66] transition-all"
+            className="w-full bg-transparent border-b border-[#1A1A1A]/10 pl-7 pr-7 py-1 text-xs text-[#1A1A1A] placeholder:text-[#1A1A1A]/40 focus:outline-none focus:border-[#8B7E66] transition-all"
           />
+          {searchQuery && (
+            <button onClick={() => onSearchQueryChange('')} className="absolute right-1 top-1/2 -translate-y-1/2 text-[#1A1A1A]/40 hover:text-[#A34E36]">
+              <X className="w-3 h-3" />
+            </button>
+          )}
         </div>
         <div className="h-6 w-[1px] bg-[#1A1A1A]/10 hidden sm:block"></div>
         <div className="hidden sm:flex items-center gap-2">
@@ -83,11 +91,48 @@ export default function Header({
 
       {/* Right side: Actions & User Info */}
       <div className="flex items-center gap-6">
-        <div className="flex items-center gap-2">
-          <button className="text-[#1A1A1A]/60 hover:text-[#1A1A1A] p-2 rounded-none transition-all relative">
+        <div className="flex items-center gap-2 relative">
+          {/* Notification Bell */}
+          <button
+            onClick={() => setShowNotifs(v => !v)}
+            className="text-[#1A1A1A]/60 hover:text-[#1A1A1A] p-2 rounded-none transition-all relative"
+          >
             <Bell className="w-4 h-4" />
-            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-[#A34E36]"></span>
+            {criticalAlerts.filter(a => a.status === 'active').length > 0 && (
+              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-[#A34E36] rounded-full"></span>
+            )}
           </button>
+
+          {/* Notification dropdown */}
+          {showNotifs && (
+            <div className="absolute top-10 right-0 w-80 bg-white border border-[#1A1A1A]/10 shadow-xl z-50">
+              <div className="p-3 border-b border-[#1A1A1A]/10 flex justify-between items-center">
+                <span className="text-[10px] font-sans font-bold uppercase tracking-wider text-[#1A1A1A]">
+                  Active QA Alerts ({criticalAlerts.filter(a => a.status === 'active').length})
+                </span>
+                <button onClick={() => setShowNotifs(false)} className="text-[#1A1A1A]/40 hover:text-[#1A1A1A]">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="max-h-72 overflow-y-auto">
+                {criticalAlerts.filter(a => a.status === 'active').slice(0, 10).map((alert, idx) => (
+                  <div key={`${alert.id}-${idx}`} className="p-3 border-b border-[#1A1A1A]/5 hover:bg-[#FAF8F6] cursor-pointer">
+                    <div className="flex items-start gap-2">
+                      <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${alert.severity === 'critical' ? 'bg-[#A34E36]' : 'bg-amber-500'}`}></span>
+                      <div>
+                        <p className="text-[11px] font-sans font-bold text-[#1A1A1A] leading-tight">{alert.title}</p>
+                        <p className="text-[10px] text-[#1A1A1A]/50 mt-0.5">{alert.dieticianName} — {alert.patientName || alert.recordingName}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {criticalAlerts.filter(a => a.status === 'active').length === 0 && (
+                  <p className="p-4 text-xs text-[#1A1A1A]/40 text-center">No active alerts</p>
+                )}
+              </div>
+            </div>
+          )}
+
           <button className="text-[#1A1A1A]/60 hover:text-[#1A1A1A] p-2 rounded-none transition-all">
             <HelpCircle className="w-4 h-4" />
           </button>
