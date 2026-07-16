@@ -111,9 +111,12 @@ INSTRUCTIONS:
 4. Keep domain terms: "Bajaj Finserv Health", "consultation", "appointment", "guidelines"
 5. Add natural punctuation based on speech tone
 
-OUTPUT FORMAT:
+OUTPUT FORMAT — label every utterance individually:
 [Dietician]: <what dietician said>
 [Customer]: <what customer said>
+
+NOTE: The SAME speaker can speak multiple consecutive lines without interruption.
+Do NOT force alternation — label exactly what you hear, who says it.
 """
 
         response = client.models.generate_content(
@@ -192,10 +195,11 @@ SPEAKER LABELS TO USE:
 
 INSTRUCTIONS:
 1. Transcribe EVERY spoken word — do not skip or summarize anything
-2. Label each line as [Dietician]: or [Customer]: based on the rules above
-3. Mark truly unclear audio as [unclear] — do not guess wildly
-4. Preserve Hinglish naturally (mix of Hindi and English as spoken)
-5. Add natural punctuation based on speech tone
+2. Label each utterance as [Dietician]: or [Customer]: based on the speaker rules above
+3. The SAME speaker CAN have multiple consecutive lines — do NOT force alternation
+4. Mark truly unclear audio as [unclear] — do not guess wildly
+5. Preserve Hinglish naturally (mix of Hindi and English as spoken)
+6. Add natural punctuation based on speech tone
 
 After transcription, extract:
 - customer_name: Name of the customer/patient (the name asked by dietician e.g. "Umesh Ramesh ji?")

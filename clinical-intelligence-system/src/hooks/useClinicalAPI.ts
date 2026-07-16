@@ -149,6 +149,7 @@ export async function fetchCallDetail(callId: string): Promise<Recording | null>
       })) || [],
       transcript: buildTranscriptTurns(data),
       recording_url: data.recording_url,
+      entities: data.entities || {},
       insights: {
         whatWentWell: data.insights?.whatWentWell || [],
         areasForImprovement: data.insights?.areasForImprovement || [],

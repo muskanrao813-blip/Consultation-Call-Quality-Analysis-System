@@ -107,16 +107,20 @@ export default function AIInsightsView({
   const effectiveDuration = audioDuration || (activeCall ? parseInt(activeCall.duration?.split(':')[0] || '0') * 60 + parseInt(activeCall.duration?.split(':')[1] || '0') : 300);
   const fmtTime = (s: number) => `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
 
-  // Deduplicate insights (training gaps may repeat across calls)
-  const uniqueWentWell = [...new Set(activeCall?.insights?.whatWentWell || [])];
-  const uniqueImprovements = [...new Set(activeCall?.insights?.areasForImprovement || [])];
-  // Filter out diabetes-specific inferences if not mentioned in transcript
+  // Check if diabetes/specific conditions were actually mentioned in the call
   const transcriptText = (activeCall?.transcript || []).map(t => t.text).join(' ').toLowerCase();
   const diabetesMentioned = /diabet|sugar|insulin|glucose|hba1c/i.test(transcriptText);
-  const filteredAlerts = (activeCall?.qaAlerts || []).filter(a => {
-    if (!diabetesMentioned && /diabet/i.test(a.description || '')) return false;
+  const conditionFilter = (text: string) => {
+    if (!diabetesMentioned && /diabet/i.test(text)) return false;
     return true;
-  });
+  };
+
+  // Deduplicate and filter condition-specific inferences
+  const uniqueWentWell = [...new Set(activeCall?.insights?.whatWentWell || [])].filter(conditionFilter);
+  const uniqueImprovements = [...new Set(activeCall?.insights?.areasForImprovement || [])].filter(conditionFilter);
+  const filteredAlerts = (activeCall?.qaAlerts || []).filter(a =>
+    conditionFilter(a.title + ' ' + (a.description || ''))
+  );
 
   return (
     <div className="flex-1 flex overflow-hidden h-full bg-[#F7F3F0] select-none">
@@ -141,7 +145,10 @@ export default function AIInsightsView({
                     Consult ID: #{activeCall.id}
                   </h2>
                   <p className="text-xs font-sans uppercase tracking-wider text-[#1A1A1A]/50 mt-1">
-                    {activeCall.patientName} - Diabetes Management Planning | Duration: {activeCall.duration}
+                    {activeCall.patientName}
+                    {(activeCall as any).entities?.call_purpose
+                      ? ` — ${(activeCall as any).entities.call_purpose}`
+                      : ''} | Duration: {activeCall.duration}
                   </p>
                 </div>
               </button>

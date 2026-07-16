@@ -50,6 +50,7 @@ export interface Recording {
   qaAlerts: QAAlert[];
   transcript: TranscriptTurn[];
   recording_url?: string;
+  entities?: Record<string, string>;
   insights: {
     whatWentWell: string[];
     areasForImprovement: string[];

@@ -280,13 +280,21 @@ export default function DashboardView({
 
             <button
               onClick={() => {
-                const top = recordings.flatMap(r => r.qaAlerts || [])
-                  .reduce((acc: Record<string, number>, a) => {
-                    acc[a.title] = (acc[a.title] || 0) + 1; return acc;
-                  }, {});
-                const msg = Object.entries(top).sort((a,b) => b[1]-a[1]).slice(0,5)
-                  .map(([t, c]) => `• ${t} (${c} alerts)`).join('\n');
-                alert('Top SOP Breach Types:\n\n' + (msg || 'No breaches recorded'));
+                try {
+                  const allAlerts = recordings.flatMap(r => r.qaAlerts || []);
+                  const top: Record<string, number> = {};
+                  for (const a of allAlerts) {
+                    const t = a?.title;
+                    if (t) top[t] = (top[t] || 0) + 1;
+                  }
+                  const sorted = Object.entries(top).sort((a, b) => b[1] - a[1]).slice(0, 8);
+                  const msg = sorted.length > 0
+                    ? sorted.map(([t, c]) => `• ${t} — ${c} occurrence${c > 1 ? 's' : ''}`).join('\n')
+                    : 'No breach data available yet.';
+                  alert(`Top SOP Breach Types (${recordings.length} calls analysed):\n\n${msg}`);
+                } catch (e) {
+                  alert('Unable to load breach data. Please try again.');
+                }
               }}
               className="mt-6 w-full py-3 border border-[#1A1A1A]/30 text-[#1A1A1A] text-xs font-sans uppercase tracking-widest hover:bg-[#1A1A1A] hover:text-white transition-all rounded-none cursor-pointer">
               View Breach Heatmap
