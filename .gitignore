@@ -1,8 +1,12 @@
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
+env/
+venv/
+ENV/
 build/
 develop-eggs/
 dist/
@@ -19,25 +23,58 @@ wheels/
 .installed.cfg
 *.egg
 
-.env
-.env.local
-.env.*.local
+# Database
+*.db
+*.sqlite
+*.sqlite3
 
-.venv
-venv/
-ENV/
-
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-.DS_Store
-
+# Logs
 *.log
 
-.pytest_cache/
-.coverage
-htmlcov/
+# Test/Debug files
+test_*.py
+debug_*.py
+diagnose_*.py
+fix_*.py
+check_*.py
+verify_*.py
+find_*.py
+audit_*.py
+smart_*.py
 
-service_account.json
+# Temporary files
+*.tmp
+*.xlsx
+*.xls
+*.csv
+gemini_*.json
+*.backup
+
+# Analysis/Notes (keep only CLAUDE.md)
+FINAL_TRANSCRIPTS_*.md
+ALL_TRANSCRIPTS_*.md
+ENHANCEMENT_SUMMARY.txt
+TIER1_IMPROVEMENTS_*.md
+TRANSCRIPTION_IMPROVEMENT_*.md
+VERIFICATION_COMPLETE.md
+RANKED_TRANSCRIPTS_*.md
+FULL_SYSTEM_TEST.md
+PORTAL_TESTING_GUIDE.md
+PIPELINE_USAGE_GUIDE.md
+QUICK_START.md
+PROJECT_SAVED.md
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
