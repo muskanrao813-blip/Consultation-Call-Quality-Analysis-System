@@ -56,13 +56,12 @@ def _get_transcription_provider():
     return MockTranscriptionProvider
 
 def _get_llm_provider():
-    """Lazy load LLM provider - Claude CLI is required."""
+    """Lazy load LLM provider - prefer Gemini API, fallback to Claude CLI if available."""
     import subprocess
     import shutil
 
-    # Check if claude is available in PATH
+    # Try Claude CLI first (if user has it installed)
     claude_path = shutil.which("claude")
-
     if claude_path:
         logger.info(f"✓ Claude CLI found at: {claude_path}")
         try:
@@ -72,14 +71,12 @@ def _get_llm_provider():
                 from app.services.llm.clinical_analyzer import ClinicalAnalyzer
                 return ClinicalAnalyzer
         except Exception as e:
-            logger.error(f"Claude CLI exists but failed to run: {e}")
-            raise RuntimeError(f"Claude CLI found but failed: {e}")
+            logger.warning(f"Claude CLI exists but failed: {e}, using Gemini instead")
 
-    raise RuntimeError(
-        "Claude CLI is required but not found in PATH. "
-        "Ensure it was installed during Docker build. "
-        "Install with: npm install -g @anthropic-ai/claude-cli"
-    )
+    # Use Gemini API as primary analyzer
+    logger.info("✓ Using Gemini API for QA analysis")
+    from app.services.llm.gemini_analyzer import GeminiAnalyzer
+    return GeminiAnalyzer
 
 
 class PipelineStageError(Exception):
