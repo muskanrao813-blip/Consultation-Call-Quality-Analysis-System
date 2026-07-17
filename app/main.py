@@ -139,36 +139,20 @@ def test_gemini():
 
 @app.get("/api/debug/test-claude")
 def test_claude():
-    """Test if Claude CLI is available - or fallback to heuristic analyzer"""
+    """Test if Claude CLI is available and working"""
     import subprocess
     import shutil
     import os
-    import pathlib
 
-    # Try multiple paths
-    search_paths = [
-        shutil.which("claude"),
-        "/usr/local/lib/node_modules/.bin/claude",
-        "/usr/lib/node_modules/.bin/claude",
-        os.path.expanduser("~/.npm-global/bin/claude"),
-    ]
-
-    claude_path = None
-    for path in search_paths:
-        if path and pathlib.Path(path).exists():
-            claude_path = path
-            break
+    claude_path = shutil.which("claude")
 
     if not claude_path:
         return {
-            "status": "warning",
-            "message": "Claude CLI not found - using heuristic/fallback analyzer instead",
+            "status": "error",
+            "message": "Claude CLI not found in PATH",
             "claude_available": False,
-            "fallback_available": True,
-            "fallback_analyzer": "HeuristicAnalyzer (generates scores from call metrics)",
-            "checked_paths": [p for p in search_paths if p],
-            "current_path_env": os.environ.get("PATH", "NOT SET")[:200],
-            "hint": "System will still work with heuristic scoring based on call metrics"
+            "current_path": os.environ.get("PATH", "NOT SET")[:300],
+            "hint": "Claude CLI must be installed. Build output should show 'claude --version' success."
         }
 
     try:
@@ -182,19 +166,17 @@ def test_claude():
             }
         else:
             return {
-                "status": "warning",
-                "message": f"Claude CLI found but returned exit code {result.returncode}",
+                "status": "error",
+                "message": f"Claude CLI returned exit code {result.returncode}: {result.stderr}",
                 "claude_available": False,
-                "fallback_available": True,
-                "fallback_analyzer": "HeuristicAnalyzer"
+                "claude_path": claude_path
             }
     except Exception as e:
         return {
-            "status": "warning",
-            "message": f"Claude CLI error ({type(e).__name__}), using fallback analyzer",
+            "status": "error",
+            "message": f"{type(e).__name__}: {str(e)}",
             "claude_available": False,
-            "fallback_available": True,
-            "fallback_analyzer": "HeuristicAnalyzer"
+            "claude_path": claude_path
         }
 
 
