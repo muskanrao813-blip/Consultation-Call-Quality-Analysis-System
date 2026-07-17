@@ -129,36 +129,32 @@ def test_gemini():
 
 @app.get("/api/debug/test-claude")
 def test_claude():
-    """Test if Claude CLI is available"""
-    import subprocess
-    import pathlib
+    """Test if Claude API is working"""
+    import os
+    api_key = os.getenv("ANTHROPIC_API_KEY", "NOT_SET")
+
+    if api_key == "NOT_SET":
+        return {"status": "error", "message": "ANTHROPIC_API_KEY environment variable not set"}
 
     try:
-        result = subprocess.run(["claude", "--version"], capture_output=True, text=True, timeout=5)
-        if result.returncode == 0:
-            return {
-                "status": "success",
-                "message": result.stdout.strip(),
-                "claude_available": True
-            }
-        else:
-            return {
-                "status": "error",
-                "message": f"Claude returned exit code {result.returncode}: {result.stderr}",
-                "claude_available": False
-            }
-    except FileNotFoundError:
+        from anthropic import Anthropic
+        client = Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model="claude-opus-4-1",
+            max_tokens=50,
+            messages=[{"role": "user", "content": "Say 'Claude API is working' in one sentence"}]
+        )
         return {
-            "status": "error",
-            "message": "Claude CLI not found in PATH",
-            "claude_available": False,
-            "hint": "Install with: npm install -g @anthropic-ai/claude-cli"
+            "status": "success",
+            "message": response.content[0].text[:100],
+            "api_key_set": True,
+            "model": "claude-opus-4-1"
         }
     except Exception as e:
         return {
             "status": "error",
             "message": f"{type(e).__name__}: {str(e)}",
-            "claude_available": False
+            "api_key_set": api_key != "NOT_SET"
         }
 
 

@@ -2,25 +2,15 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies + Node.js for Claude CLI
+# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    curl \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
-
-# Install Claude CLI globally and verify
-RUN npm install -g @anthropic-ai/claude-cli && \
-    claude --version
-
-# Ensure npm global bin is in PATH
-ENV PATH="/usr/local/lib/node_modules/.bin:/root/.npm-global/bin:${PATH}"
 
 # Copy requirements
 COPY requirements.txt .
 
-# Install Python dependencies
+# Install Python dependencies (includes anthropic SDK for Claude API)
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 

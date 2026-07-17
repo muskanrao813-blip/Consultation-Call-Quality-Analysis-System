@@ -56,36 +56,16 @@ def _get_transcription_provider():
     return MockTranscriptionProvider
 
 def _get_llm_provider():
-    """Lazy load LLM provider - Claude CLI is required."""
-    import subprocess
-    import pathlib
+    """Lazy load LLM provider - using Claude API via Python SDK."""
+    import os
 
-    claude_available = False
-    try:
-        result = subprocess.run(["claude", "--version"], capture_output=True, text=True, timeout=5)
-        if result.returncode == 0 and "claude" in result.stdout.lower():
-            claude_available = True
-            logger.info("✓ Claude CLI detected in PATH")
-    except Exception:
-        pass
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise RuntimeError("ANTHROPIC_API_KEY environment variable is required for Claude API analysis")
 
-    if not claude_available:
-        claude_npm_path = pathlib.Path.home() / "AppData" / "Roaming" / "npm" / "claude.cmd"
-        if claude_npm_path.exists():
-            try:
-                result = subprocess.run([str(claude_npm_path), "--version"], capture_output=True, text=True, timeout=5)
-                if result.returncode == 0:
-                    claude_available = True
-                    logger.info("✓ Claude CLI detected (npm)")
-            except Exception:
-                pass
-
-    if claude_available:
-        logger.info("✓ Using ClinicalAnalyzer with Claude CLI (enhanced clinical SOP checks)")
-        from app.services.llm.clinical_analyzer import ClinicalAnalyzer
-        return ClinicalAnalyzer
-
-    raise RuntimeError("Claude CLI is required for call analysis. Install Claude CLI and ensure it is available on PATH.")
+    logger.info("✓ Using Claude API via Python SDK (anthropic package)")
+    from app.services.llm.clinical_analyzer import ClinicalAnalyzer
+    return ClinicalAnalyzer
 
 
 class PipelineStageError(Exception):
