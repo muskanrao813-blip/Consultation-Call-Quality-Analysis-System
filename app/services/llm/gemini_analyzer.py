@@ -65,20 +65,29 @@ class GeminiAnalyzer:
             # Parse response as JSON
             response_text = response.text.strip()
             logger.info(f"[Gemini QA] Response length: {len(response_text)} chars")
+            logger.info(f"[Gemini QA] First 500 chars: {response_text[:500]}")
 
             # Try to extract JSON from response
             try:
                 # Try parsing as JSON directly
                 analysis_result = json.loads(response_text)
-            except json.JSONDecodeError:
+                logger.info(f"[Gemini QA] Successfully parsed JSON response")
+            except json.JSONDecodeError as parse_err:
+                logger.warning(f"[Gemini QA] JSON parse error: {parse_err}")
                 # Try extracting JSON from markdown code block
                 if "```json" in response_text:
                     json_start = response_text.find("```json") + 7
                     json_end = response_text.find("```", json_start)
                     json_str = response_text[json_start:json_end].strip()
-                    analysis_result = json.loads(json_str)
+                    try:
+                        analysis_result = json.loads(json_str)
+                        logger.info(f"[Gemini QA] Extracted JSON from markdown block")
+                    except json.JSONDecodeError as md_err:
+                        logger.warning(f"[Gemini QA] Markdown JSON parse error: {md_err}, using fallback")
+                        analysis_result = self._generate_fallback_scores(metrics)
                 else:
-                    logger.warning("Could not parse Gemini response as JSON, using fallback")
+                    logger.warning(f"[Gemini QA] No JSON found in response, using fallback")
+                    logger.warning(f"[Gemini QA] Full response: {response_text}")
                     analysis_result = self._generate_fallback_scores(metrics)
 
             logger.info("[Gemini QA] Analysis complete")

@@ -175,6 +175,60 @@ def debug_process_call(call_id: str):
         return {"status": "error", "message": str(e)}
 
 
+@app.get("/api/debug/test-gemini-analyzer")
+def test_gemini_analyzer():
+    """Test Gemini analyzer with sample data"""
+    try:
+        from app.services.llm.gemini_analyzer import GeminiAnalyzer
+
+        analyzer = GeminiAnalyzer()
+
+        # Sample transcript segments
+        test_segments = [
+            {"speaker": "dietician", "text": "Hello, how are you feeling today?", "start_s": 0, "end_s": 3},
+            {"speaker": "patient", "text": "I'm doing well, thank you for asking", "start_s": 3, "end_s": 8},
+            {"speaker": "dietician", "text": "Do you have any medical conditions I should know about?", "start_s": 8, "end_s": 15},
+            {"speaker": "patient", "text": "I have diabetes and hypertension", "start_s": 15, "end_s": 20},
+            {"speaker": "dietician", "text": "I see. Let me create a personalized diet plan for you", "start_s": 20, "end_s": 28},
+        ]
+
+        # Sample metrics
+        test_metrics = {
+            "duration_seconds": 300,
+            "dietician_talk_ratio_pct": 45,
+            "patient_talk_ratio_pct": 35,
+            "interruption_count": 2,
+            "avg_response_latency_seconds": 2.5,
+            "time_to_first_plan_mention_seconds": 180,
+            "silence_pct": 10,
+        }
+
+        result = analyzer.analyze_all_dimensions(
+            test_segments,
+            test_metrics,
+            "test-call-id",
+            "Dr. Test",
+            "patient-001",
+            "Diabetes"
+        )
+
+        return {
+            "status": "success",
+            "message": "Gemini analyzer test completed",
+            "result": result,
+            "dimensions": list(result.get("dimension_scores", {}).keys()),
+            "has_feedback": bool(result.get("feedback_summary")),
+            "has_qa_alerts": bool(result.get("qa_alerts")),
+        }
+    except Exception as e:
+        import traceback
+        return {
+            "status": "error",
+            "message": f"{type(e).__name__}: {str(e)}",
+            "traceback": traceback.format_exc()[:500]
+        }
+
+
 @app.get("/api/debug/test-gemini")
 def test_gemini():
     """Test if Gemini API is working"""
