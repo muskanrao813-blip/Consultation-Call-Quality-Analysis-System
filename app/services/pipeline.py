@@ -440,6 +440,16 @@ def process_call(call_id: str) -> None:
 
             # 4. Run LLM analysis
             rubric_response = None  # Initialize to prevent UnboundLocalError
+            # Initialize metrics_dict BEFORE try block so it's available in except block
+            metrics_dict = {
+                "duration_seconds": call_duration,
+                "dietician_talk_ratio_pct": talk_ratios.get("dietician_pct", 0),
+                "patient_talk_ratio_pct": talk_ratios.get("patient_pct", 0),
+                "interruption_count": metrics.compute_interruptions(segments),
+                "avg_response_latency_seconds": metrics.compute_response_latency(segments),
+                "time_to_first_plan_mention_seconds": metrics.compute_time_to_first_plan(segments),
+                "silence_pct": metrics.compute_silence_pct(segments, call_duration),
+            }
             try:
                 metrics_tracker.start_stage("llm_analysis")
                 logger.info("Step 4: Running LLM rubric analysis")
@@ -449,16 +459,6 @@ def process_call(call_id: str) -> None:
                     llm_provider = LLMProvider(settings.gemini_api_key)
                 else:
                     llm_provider = LLMProvider()
-
-                metrics_dict = {
-                    "duration_seconds": call_duration,
-                    "dietician_talk_ratio_pct": talk_ratios.get("dietician_pct", 0),
-                    "patient_talk_ratio_pct": talk_ratios.get("patient_pct", 0),
-                    "interruption_count": metrics.compute_interruptions(segments),
-                    "avg_response_latency_seconds": metrics.compute_response_latency(segments),
-                    "time_to_first_plan_mention_seconds": metrics.compute_time_to_first_plan(segments),
-                    "silence_pct": metrics.compute_silence_pct(segments, call_duration),
-                }
 
                 try:
                     # Detect condition from Gemini entities or transcript — never assume
