@@ -115,25 +115,13 @@ class GeminiAnalyzer:
         dietician_name: str,
         patient_condition: str
     ) -> str:
-        """Build the analysis prompt for Gemini."""
-        return f"""You are a QA expert analyzing a dietician-patient consultation.
+        """Build the analysis prompt for Gemini using clinical SOP framework."""
+        from app.services.llm.clinical_prompt import create_clinical_analysis_prompt
 
-Score on 6 dimensions (0-10 scale). MUST provide scores for ALL dimensions.
-Return ONLY valid JSON - no markdown, no explanation, no extra text.
-
-CALL METRICS:
-- Duration: {metrics.get('duration_seconds', 0)}s
-- Dietician: {metrics.get('dietician_talk_ratio_pct', 0)}% | Patient: {metrics.get('patient_talk_ratio_pct', 0)}%
-- Interruptions: {metrics.get('interruption_count', 0)}
-- Latency: {metrics.get('avg_response_latency_seconds', 0)}s
-- Time to plan: {metrics.get('time_to_first_plan_mention_seconds', 0)}s
-
-TRANSCRIPT:
-{transcript}
-
----
-
-Return VALID JSON ONLY (no markdown, no ```json, no explanation):
+        # Use the exact same prompt that Claude uses
+        prompt = create_clinical_analysis_prompt(transcript, metrics, patient_condition)
+        logger.info(f"[Gemini QA] Using clinical analysis prompt (same as Claude)")
+        return prompt
 
 {{
   "dimension_scores": {{
