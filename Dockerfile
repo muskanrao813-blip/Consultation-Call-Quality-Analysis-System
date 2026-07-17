@@ -10,8 +10,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Claude CLI
-RUN npm install -g @anthropic-ai/claude-cli
+# Install Claude CLI globally and verify
+RUN npm install -g @anthropic-ai/claude-cli && \
+    claude --version
+
+# Ensure npm global bin is in PATH
+ENV PATH="/usr/local/lib/node_modules/.bin:/root/.npm-global/bin:${PATH}"
 
 # Copy requirements
 COPY requirements.txt .
