@@ -3,9 +3,13 @@ services:
     name: dietician-qa-api
     env: python
     plan: free
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install --no-build-isolation -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port 8000
     envVars:
+      - key: PIP_NO_BUILD_ISOLATION
+        value: "true"
+      - key: PIP_NO_CACHE_DIR
+        value: "true"
       - key: GROQ_API_KEY
         sync: false
       - key: GOOGLE_API_KEY
