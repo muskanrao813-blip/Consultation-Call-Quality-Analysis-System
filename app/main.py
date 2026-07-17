@@ -89,6 +89,17 @@ def get_processing_status():
                     metrics = db.query(models.CallMetrics).filter(models.CallMetrics.call_id == call.id).first()
                     scores = db.query(models.RubricScore).filter(models.RubricScore.call_id == call.id).first()
 
+                    # Get transcript text from either raw_transcript_json or raw_transcript
+                    transcript_text = ""
+                    if trans:
+                        if hasattr(trans, 'raw_transcript_json') and trans.raw_transcript_json:
+                            if isinstance(trans.raw_transcript_json, dict):
+                                transcript_text = trans.raw_transcript_json.get("text", "")
+                            else:
+                                transcript_text = str(trans.raw_transcript_json)
+                        elif hasattr(trans, 'raw_transcript') and trans.raw_transcript:
+                            transcript_text = trans.raw_transcript
+
                     result.append({
                         "id": str(call.id),
                         "status": str(call.status),
@@ -98,7 +109,7 @@ def get_processing_status():
                         "recording_url": call.recording_url[:50] + "..." if call.recording_url and len(call.recording_url) > 50 else call.recording_url,
                         "transcript_exists": trans is not None,
                         "transcript_provider": trans.provider if trans else None,
-                        "transcript_text_length": len(trans.raw_transcript) if trans and trans.raw_transcript else 0,
+                        "transcript_text_length": len(transcript_text) if transcript_text else 0,
                         "metrics_exists": metrics is not None,
                         "scores_exists": scores is not None,
                         "overall_score": scores.overall_weighted_score if scores else None,
@@ -119,6 +130,49 @@ def get_processing_status():
             "message": f"Database error: {str(e)}",
             "hint": "Database may not be initialized yet"
         }
+
+
+@app.get("/api/debug/process-call/{call_id}")
+def debug_process_call(call_id: str):
+    """Manually trigger processing for a specific call (for debugging)"""
+    try:
+        from app.services.pipeline import process_call
+        import uuid
+
+        # Verify call exists
+        from app.db.session import SessionLocal
+        from app.db import models
+        db = SessionLocal()
+
+        try:
+            call_uuid = uuid.UUID(call_id)
+            call = db.query(models.Call).filter(models.Call.id == call_uuid).first()
+            if not call:
+                return {"status": "error", "message": f"Call {call_id} not found"}
+
+            # Try to process it
+            logger.info(f"Manual processing triggered for call {call_id}")
+            process_call(call_id)
+
+            # Check result
+            call = db.query(models.Call).filter(models.Call.id == call_uuid).first()
+            return {
+                "status": "completed",
+                "call_id": call_id,
+                "call_status": str(call.status),
+                "error_message": call.error_message
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": f"{type(e).__name__}: {str(e)}",
+                "call_id": call_id
+            }
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Error in manual processing: {e}")
+        return {"status": "error", "message": str(e)}
 
 
 @app.get("/api/debug/test-gemini")
