@@ -116,14 +116,16 @@ class GeminiAnalyzer:
         patient_condition: str
     ) -> str:
         """Build the analysis prompt for Gemini."""
-        return f"""Analyze this dietician-patient consultation call and score it on 6 dimensions.
+        return f"""You are a QA expert analyzing a dietician-patient consultation.
+
+Score on 6 dimensions (0-10 scale). MUST provide scores for ALL dimensions.
+Return ONLY valid JSON - no markdown, no explanation, no extra text.
 
 CALL METRICS:
-- Duration: {metrics.get('duration_seconds', 0)} seconds
-- Dietician talk: {metrics.get('dietician_talk_ratio_pct', 0)}%
-- Patient talk: {metrics.get('patient_talk_ratio_pct', 0)}%
+- Duration: {metrics.get('duration_seconds', 0)}s
+- Dietician: {metrics.get('dietician_talk_ratio_pct', 0)}% | Patient: {metrics.get('patient_talk_ratio_pct', 0)}%
 - Interruptions: {metrics.get('interruption_count', 0)}
-- Response latency: {metrics.get('avg_response_latency_seconds', 0)}s
+- Latency: {metrics.get('avg_response_latency_seconds', 0)}s
 - Time to plan: {metrics.get('time_to_first_plan_mention_seconds', 0)}s
 
 TRANSCRIPT:
@@ -131,7 +133,7 @@ TRANSCRIPT:
 
 ---
 
-Analyze and return ONLY valid JSON (no markdown, no explanation):
+Return VALID JSON ONLY (no markdown, no ```json, no explanation):
 
 {{
   "dimension_scores": {{
@@ -216,12 +218,22 @@ Score based on actual evidence from transcript. Be fair but rigorous."""
 
     def _generate_fallback_scores(self, metrics: Dict) -> Dict:
         """Generate fallback scores if Gemini analysis fails."""
+        logger.info("[Gemini QA] Using fallback heuristic analyzer")
         from app.services.llm.heuristic_analyzer import HeuristicAnalyzer
         analyzer = HeuristicAnalyzer()
-        return analyzer.analyze_all_dimensions(
+        result = analyzer.analyze_all_dimensions(
             [],
             metrics,
             "fallback",
             "Unknown",
             "Unknown"
         )
+        # Ensure all required fields are present
+        result.setdefault("qa_alerts", [])
+        result.setdefault("insights", {
+            "whatWentWell": ["Consultation completed"],
+            "areasForImprovement": ["Continue to refine consultation approach"],
+            "summary": "Consultation analysis completed using heuristic scoring"
+        })
+        logger.info("[Gemini QA] Fallback scores generated with feedback")
+        return result
