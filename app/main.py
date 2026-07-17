@@ -79,22 +79,32 @@ def get_processing_status():
     import json
 
     db = SessionLocal()
-    calls = db.query(models.Call).order_by(models.Call.created_at.desc()).limit(5).all()
+    calls = db.query(models.Call).order_by(models.Call.created_at.desc()).limit(10).all()
 
     result = []
     for call in calls:
         trans = db.query(models.Transcript).filter(models.Transcript.call_id == call.id).first()
+        metrics = db.query(models.CallMetrics).filter(models.CallMetrics.call_id == call.id).first()
+        scores = db.query(models.RubricScore).filter(models.RubricScore.call_id == call.id).first()
+
         result.append({
             "id": str(call.id),
             "status": str(call.status),
             "created": str(call.created_at),
+            "patient_name": call.patient_name,
+            "appointment_id": call.appointment_id,
+            "recording_url": call.recording_url[:50] + "..." if call.recording_url and len(call.recording_url) > 50 else call.recording_url,
+            "transcript_exists": trans is not None,
             "transcript_provider": trans.provider if trans else "None",
-            "transcript_segments": len(trans.diarized_segments) if trans and trans.diarized_segments else 0,
+            "transcript_text_length": len(trans.raw_transcript) if trans and trans.raw_transcript else 0,
+            "metrics_exists": metrics is not None,
+            "scores_exists": scores is not None,
+            "overall_score": scores.overall_weighted_score if scores else None,
             "error": call.error_message
         })
 
     db.close()
-    return {"calls": result}
+    return {"calls": result, "total_calls": len(calls)}
 
 
 @app.get("/api/debug/test-gemini")
