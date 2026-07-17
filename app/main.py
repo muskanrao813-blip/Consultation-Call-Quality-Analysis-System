@@ -35,6 +35,7 @@ app.add_middleware(
         "http://127.0.0.1:5173",
         "http://127.0.0.1:8080",
         # Production (Netlify)
+        "https://consultation-call-quality-analysis.netlify.app",
         "https://rainbow-biscotti-eb81b0.netlify.app",
     ],
     allow_credentials=True,
