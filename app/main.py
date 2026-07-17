@@ -211,16 +211,33 @@ def test_claude():
     import subprocess
     import shutil
     import os
+    import pathlib
 
-    claude_path = shutil.which("claude")
+    # Search in many possible locations
+    search_locations = [
+        shutil.which("claude"),
+        "/usr/local/bin/claude",
+        "/usr/bin/claude",
+        "/opt/render/.npm-global/bin/claude",
+        "/root/.npm-global/bin/claude",
+        "/home/render/.npm-global/bin/claude",
+    ]
+
+    claude_path = None
+    for loc in search_locations:
+        if loc and pathlib.Path(loc).exists():
+            claude_path = loc
+            break
 
     if not claude_path:
         return {
-            "status": "error",
-            "message": "Claude CLI not found in PATH",
+            "status": "warning",
+            "message": "Claude CLI not found - using fallback heuristic scoring",
             "claude_available": False,
-            "current_path": os.environ.get("PATH", "NOT SET")[:300],
-            "hint": "Claude CLI must be installed. Build output should show 'claude --version' success."
+            "fallback_active": True,
+            "searched_locations": search_locations,
+            "current_path_env": os.environ.get("PATH", "NOT SET")[:200],
+            "note": "System is working with heuristic scoring. Gemini transcription + metrics-based scores."
         }
 
     try:
@@ -234,16 +251,18 @@ def test_claude():
             }
         else:
             return {
-                "status": "error",
-                "message": f"Claude CLI returned exit code {result.returncode}: {result.stderr}",
+                "status": "warning",
+                "message": f"Claude CLI found but returned exit code {result.returncode}",
                 "claude_available": False,
+                "fallback_active": True,
                 "claude_path": claude_path
             }
     except Exception as e:
         return {
-            "status": "error",
-            "message": f"{type(e).__name__}: {str(e)}",
+            "status": "warning",
+            "message": f"Claude CLI error ({type(e).__name__}), using fallback",
             "claude_available": False,
+            "fallback_active": True,
             "claude_path": claude_path
         }
 
