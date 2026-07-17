@@ -175,6 +175,55 @@ def debug_process_call(call_id: str):
         return {"status": "error", "message": str(e)}
 
 
+@app.get("/api/debug/test-gemini-raw")
+def test_gemini_raw():
+    """Test raw Gemini response to see exact output"""
+    try:
+        import os
+        from google import genai
+        from google.genai import types
+        import httpx
+
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            return {"status": "error", "message": "GEMINI_API_KEY not set"}
+
+        http_client = httpx.Client(verify=False)
+        client = genai.Client(
+            api_key=api_key,
+            http_options=types.HttpOptions(httpx_client=http_client),
+        )
+
+        # Simple test prompt
+        test_prompt = """You are a QA expert. Return ONLY valid JSON (no markdown):
+{
+  "test": "hello",
+  "status": "working"
+}"""
+
+        response = client.models.generate_content(
+            model="gemini-flash-lite-latest",
+            contents=test_prompt,
+        )
+
+        response_text = response.text.strip()
+
+        return {
+            "status": "success",
+            "raw_response": response_text[:1000],
+            "response_length": len(response_text),
+            "is_json": response_text.startswith("{"),
+            "first_100_chars": response_text[:100],
+        }
+    except Exception as e:
+        import traceback
+        return {
+            "status": "error",
+            "message": f"{type(e).__name__}: {str(e)}",
+            "traceback": traceback.format_exc()[:300]
+        }
+
+
 @app.get("/api/debug/test-gemini-analyzer")
 def test_gemini_analyzer():
     """Test Gemini analyzer with sample data"""
@@ -215,10 +264,16 @@ def test_gemini_analyzer():
         return {
             "status": "success",
             "message": "Gemini analyzer test completed",
-            "result": result,
-            "dimensions": list(result.get("dimension_scores", {}).keys()),
-            "has_feedback": bool(result.get("feedback_summary")),
-            "has_qa_alerts": bool(result.get("qa_alerts")),
+            "result_keys": list(result.keys()),
+            "has_scores": "scores" in result,
+            "has_sop_compliance": "sop_compliance" in result,
+            "has_insights": "insights" in result,
+            "has_qa_alerts": "qa_alerts" in result,
+            "result_summary": {
+                "scores": result.get("scores"),
+                "sop_compliance_score": result.get("sop_compliance", {}).get("compliance_score"),
+                "insights_summary": result.get("insights", {}).get("summary"),
+            }
         }
     except Exception as e:
         import traceback
