@@ -56,7 +56,7 @@ def _get_transcription_provider():
     return MockTranscriptionProvider
 
 def _get_llm_provider():
-    """Lazy load LLM provider - Claude CLI is required."""
+    """Lazy load LLM provider - Claude CLI is optional, use heuristics as fallback."""
     import subprocess
     import shutil
     import pathlib
@@ -85,12 +85,10 @@ def _get_llm_provider():
         except Exception as e:
             logger.error(f"Claude CLI exists but failed to run: {e}")
 
-    logger.error(f"Claude CLI not found. Searched paths: {search_paths}")
-    raise RuntimeError(
-        "Claude CLI is required for call analysis. "
-        "Please ensure Claude CLI is installed and available in PATH. "
-        "Install with: npm install -g @anthropic-ai/claude-cli"
-    )
+    # Claude CLI not available - use heuristic analyzer instead
+    logger.warning("Claude CLI not found - using heuristic/fallback analyzer")
+    from app.services.llm.heuristic_analyzer import HeuristicAnalyzer
+    return HeuristicAnalyzer
 
 
 class PipelineStageError(Exception):

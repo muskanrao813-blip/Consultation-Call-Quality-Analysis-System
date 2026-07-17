@@ -139,7 +139,7 @@ def test_gemini():
 
 @app.get("/api/debug/test-claude")
 def test_claude():
-    """Test if Claude CLI is available and working"""
+    """Test if Claude CLI is available - or fallback to heuristic analyzer"""
     import subprocess
     import shutil
     import os
@@ -160,15 +160,15 @@ def test_claude():
             break
 
     if not claude_path:
-        # Provide diagnostic info
-        current_path = os.environ.get("PATH", "NOT SET")
         return {
-            "status": "error",
-            "message": "Claude CLI not found in any expected location",
+            "status": "warning",
+            "message": "Claude CLI not found - using heuristic/fallback analyzer instead",
             "claude_available": False,
+            "fallback_available": True,
+            "fallback_analyzer": "HeuristicAnalyzer (generates scores from call metrics)",
             "checked_paths": [p for p in search_paths if p],
-            "current_path_env": current_path[:200],
-            "hint": "Install with: npm install -g @anthropic-ai/claude-cli"
+            "current_path_env": os.environ.get("PATH", "NOT SET")[:200],
+            "hint": "System will still work with heuristic scoring based on call metrics"
         }
 
     try:
@@ -182,17 +182,19 @@ def test_claude():
             }
         else:
             return {
-                "status": "error",
-                "message": f"Claude returned exit code {result.returncode}: {result.stderr}",
+                "status": "warning",
+                "message": f"Claude CLI found but returned exit code {result.returncode}",
                 "claude_available": False,
-                "claude_path": claude_path
+                "fallback_available": True,
+                "fallback_analyzer": "HeuristicAnalyzer"
             }
     except Exception as e:
         return {
-            "status": "error",
-            "message": f"{type(e).__name__}: {str(e)}",
+            "status": "warning",
+            "message": f"Claude CLI error ({type(e).__name__}), using fallback analyzer",
             "claude_available": False,
-            "claude_path": claude_path
+            "fallback_available": True,
+            "fallback_analyzer": "HeuristicAnalyzer"
         }
 
 
