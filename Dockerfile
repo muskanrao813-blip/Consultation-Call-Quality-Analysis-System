@@ -9,12 +9,17 @@ RUN npm install -g @anthropic-ai/claude-cli && \
 # Stage 1: Build Claude CLI in official Node image
 FROM node:20 AS claude-builder
 
+# Force rebuild (cache buster)
+RUN echo "Build timestamp: $(date)"
+
 RUN echo "=== npm version ===" && \
     npm --version && \
     echo "=== node version ===" && \
     node --version && \
     echo "=== npm config ===" && \
     npm config list && \
+    echo "=== npm registry ===" && \
+    npm config get registry && \
     echo "=== installing Claude CLI ===" && \
     npm install -g @anthropic-ai/claude-cli 2>&1 | tee /tmp/npm-install.log && \
     echo "=== verifying installation ===" && \
