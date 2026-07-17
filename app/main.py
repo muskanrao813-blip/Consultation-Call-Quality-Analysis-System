@@ -74,37 +74,51 @@ def get_logs():
 @app.get("/api/debug/calls")
 def get_processing_status():
     """Get status of all calls for debugging"""
-    from app.db.session import SessionLocal
-    from app.db import models
-    import json
+    try:
+        from app.db.session import SessionLocal
+        from app.db import models
 
-    db = SessionLocal()
-    calls = db.query(models.Call).order_by(models.Call.created_at.desc()).limit(10).all()
+        db = SessionLocal()
+        try:
+            calls = db.query(models.Call).order_by(models.Call.created_at.desc()).limit(10).all()
 
-    result = []
-    for call in calls:
-        trans = db.query(models.Transcript).filter(models.Transcript.call_id == call.id).first()
-        metrics = db.query(models.CallMetrics).filter(models.CallMetrics.call_id == call.id).first()
-        scores = db.query(models.RubricScore).filter(models.RubricScore.call_id == call.id).first()
+            result = []
+            for call in calls:
+                try:
+                    trans = db.query(models.Transcript).filter(models.Transcript.call_id == call.id).first()
+                    metrics = db.query(models.CallMetrics).filter(models.CallMetrics.call_id == call.id).first()
+                    scores = db.query(models.RubricScore).filter(models.RubricScore.call_id == call.id).first()
 
-        result.append({
-            "id": str(call.id),
-            "status": str(call.status),
-            "created": str(call.created_at),
-            "patient_name": call.patient_name,
-            "appointment_id": call.appointment_id,
-            "recording_url": call.recording_url[:50] + "..." if call.recording_url and len(call.recording_url) > 50 else call.recording_url,
-            "transcript_exists": trans is not None,
-            "transcript_provider": trans.provider if trans else "None",
-            "transcript_text_length": len(trans.raw_transcript) if trans and trans.raw_transcript else 0,
-            "metrics_exists": metrics is not None,
-            "scores_exists": scores is not None,
-            "overall_score": scores.overall_weighted_score if scores else None,
-            "error": call.error_message
-        })
+                    result.append({
+                        "id": str(call.id),
+                        "status": str(call.status),
+                        "created": str(call.created_at),
+                        "patient_name": call.patient_name,
+                        "appointment_id": call.appointment_id,
+                        "recording_url": call.recording_url[:50] + "..." if call.recording_url and len(call.recording_url) > 50 else call.recording_url,
+                        "transcript_exists": trans is not None,
+                        "transcript_provider": trans.provider if trans else None,
+                        "transcript_text_length": len(trans.raw_transcript) if trans and trans.raw_transcript else 0,
+                        "metrics_exists": metrics is not None,
+                        "scores_exists": scores is not None,
+                        "overall_score": scores.overall_weighted_score if scores else None,
+                        "error": call.error_message
+                    })
+                except Exception as e:
+                    result.append({
+                        "error": f"Error processing call: {str(e)}"
+                    })
 
-    db.close()
-    return {"calls": result, "total_calls": len(calls)}
+            return {"calls": result, "total_calls": len(calls)}
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Debug endpoint error: {e}")
+        return {
+            "status": "error",
+            "message": f"Database error: {str(e)}",
+            "hint": "Database may not be initialized yet"
+        }
 
 
 @app.get("/api/debug/test-gemini")
