@@ -12,7 +12,9 @@ from typing import List, Dict, Any, Tuple
 
 logger = logging.getLogger(__name__)
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AQ.Ab8RN6K_ouw6DSjTmSI5ZtBAfnSthGXV_M6FuiV7XYu9f5FiXw")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if not GEMINI_API_KEY:
+    raise ValueError("GEMINI_API_KEY environment variable is required")
 
 # Bajaj Finserv domain context injected into every transcription prompt
 BAJAJ_CONTEXT = """This is a recorded phone call from Bajaj Finserv Health (a health insurance/benefits company in India).

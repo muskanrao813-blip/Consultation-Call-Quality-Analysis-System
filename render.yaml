@@ -5,6 +5,8 @@ services:
     plan: free
     dockerfilePath: ./Dockerfile
     envVars:
+      - key: GEMINI_API_KEY
+        sync: false
       - key: GROQ_API_KEY
         sync: false
       - key: GOOGLE_API_KEY
