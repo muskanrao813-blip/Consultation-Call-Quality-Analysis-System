@@ -1,15 +1,10 @@
 services:
   - type: web
     name: dietician-qa-api
-    env: python
+    env: docker
     plan: free
-    buildCommand: pip install --no-build-isolation -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    dockerfilePath: ./Dockerfile
     envVars:
-      - key: PIP_NO_BUILD_ISOLATION
-        value: "true"
-      - key: PIP_NO_CACHE_DIR
-        value: "true"
       - key: GROQ_API_KEY
         sync: false
       - key: GOOGLE_API_KEY
