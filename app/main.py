@@ -97,6 +97,71 @@ def get_processing_status():
     return {"calls": result}
 
 
+@app.get("/api/debug/test-gemini")
+def test_gemini():
+    """Test if Gemini API is working"""
+    import os
+    api_key = os.getenv("GEMINI_API_KEY", "NOT_SET")
+
+    if api_key == "NOT_SET":
+        return {"status": "error", "message": "GEMINI_API_KEY environment variable not set"}
+
+    try:
+        from google import genai
+        client = genai.Client(api_key=api_key)
+        # Simple test
+        response = client.models.generate_content(
+            model="gemini-flash-lite-latest",
+            contents="Say 'Gemini is working' in one sentence"
+        )
+        return {
+            "status": "success",
+            "message": response.text[:100],
+            "api_key_set": True
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"{type(e).__name__}: {str(e)}",
+            "api_key_set": api_key != "NOT_SET"
+        }
+
+
+@app.get("/api/debug/test-claude")
+def test_claude():
+    """Test if Claude CLI is available"""
+    import subprocess
+    import pathlib
+
+    try:
+        result = subprocess.run(["claude", "--version"], capture_output=True, text=True, timeout=5)
+        if result.returncode == 0:
+            return {
+                "status": "success",
+                "message": result.stdout.strip(),
+                "claude_available": True
+            }
+        else:
+            return {
+                "status": "error",
+                "message": f"Claude returned exit code {result.returncode}: {result.stderr}",
+                "claude_available": False
+            }
+    except FileNotFoundError:
+        return {
+            "status": "error",
+            "message": "Claude CLI not found in PATH",
+            "claude_available": False,
+            "hint": "Install with: npm install -g @anthropic-ai/claude-cli"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"{type(e).__name__}: {str(e)}",
+            "claude_available": False
+        }
+
+
 @app.get("/")
 def root():
     return {
