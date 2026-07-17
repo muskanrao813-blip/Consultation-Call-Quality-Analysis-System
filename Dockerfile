@@ -10,20 +10,29 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install Node.js and npm
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     ca-certificates \
+    git \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
-    && npm config set registry https://registry.npmjs.org/ \
-    && npm install -g @anthropic-ai/claude-cli \
-    && which claude && claude --version \
+    && npm install -g npm@latest \
     && rm -rf /var/lib/apt/lists/*
 
-# Set PATH for Claude CLI
-ENV PATH="/usr/local/bin:${PATH}"
+# Install Claude CLI with explicit steps and verbose output
+RUN echo "Installing Claude CLI..." && \
+    npm config set registry https://registry.npmjs.org/ && \
+    npm cache clean --force && \
+    npm install -g @anthropic-ai/claude-cli --verbose 2>&1 | tee /tmp/npm-install.log && \
+    echo "Verifying installation..." && \
+    which claude && \
+    claude --version && \
+    echo "Claude CLI installed successfully!"
+
+# Set PATH to ensure Claude is found
+ENV PATH="/usr/local/bin:/usr/local/sbin:/usr/local/lib/node_modules/.bin:${PATH}"
 
 # Copy requirements
 COPY requirements.txt .
