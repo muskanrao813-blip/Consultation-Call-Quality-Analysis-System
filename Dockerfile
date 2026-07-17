@@ -12,10 +12,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && npm config set registry https://registry.npmjs.org/ \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Claude CLI with explicit error checking
-RUN npm install -g @anthropic-ai/claude-cli --verbose && \
-    which claude || (echo "Claude CLI not found in PATH after installation!" && exit 1) && \
-    claude --version
+# Set NODE_PATH and extend PATH for npm global modules
+ENV NODE_PATH=/usr/local/lib/node_modules
+ENV PATH="/usr/local/lib/node_modules/.bin:/usr/local/bin:/usr/bin:/bin:${PATH}"
+
+# Install Claude CLI
+RUN npm install -g @anthropic-ai/claude-cli && \
+    echo "NPM global prefix: $(npm config get prefix)" && \
+    echo "Looking for claude..." && \
+    find /usr -name "claude" -type f 2>/dev/null || echo "claude executable not found" && \
+    ls -la /usr/local/lib/node_modules/.bin/ 2>/dev/null || echo "bin directory not found"
 
 # Copy requirements
 COPY requirements.txt .

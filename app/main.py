@@ -132,19 +132,37 @@ def test_claude():
     """Test if Claude CLI is available and working"""
     import subprocess
     import shutil
+    import os
+    import pathlib
 
-    claude_path = shutil.which("claude")
+    # Try multiple paths
+    search_paths = [
+        shutil.which("claude"),
+        "/usr/local/lib/node_modules/.bin/claude",
+        "/usr/lib/node_modules/.bin/claude",
+        os.path.expanduser("~/.npm-global/bin/claude"),
+    ]
+
+    claude_path = None
+    for path in search_paths:
+        if path and pathlib.Path(path).exists():
+            claude_path = path
+            break
 
     if not claude_path:
+        # Provide diagnostic info
+        current_path = os.environ.get("PATH", "NOT SET")
         return {
             "status": "error",
-            "message": "Claude CLI not found in PATH",
+            "message": "Claude CLI not found in any expected location",
             "claude_available": False,
+            "checked_paths": [p for p in search_paths if p],
+            "current_path_env": current_path[:200],
             "hint": "Install with: npm install -g @anthropic-ai/claude-cli"
         }
 
     try:
-        result = subprocess.run(["claude", "--version"], capture_output=True, text=True, timeout=5)
+        result = subprocess.run([claude_path, "--version"], capture_output=True, text=True, timeout=5)
         if result.returncode == 0:
             return {
                 "status": "success",
@@ -156,7 +174,8 @@ def test_claude():
             return {
                 "status": "error",
                 "message": f"Claude returned exit code {result.returncode}: {result.stderr}",
-                "claude_available": False
+                "claude_available": False,
+                "claude_path": claude_path
             }
     except Exception as e:
         return {

@@ -59,13 +59,25 @@ def _get_llm_provider():
     """Lazy load LLM provider - Claude CLI is required."""
     import subprocess
     import shutil
+    import pathlib
 
-    # Check if claude is available in PATH
-    claude_path = shutil.which("claude")
+    # Try multiple paths
+    search_paths = [
+        shutil.which("claude"),
+        "/usr/local/lib/node_modules/.bin/claude",
+        "/usr/lib/node_modules/.bin/claude",
+    ]
+
+    claude_path = None
+    for path in search_paths:
+        if path and pathlib.Path(path).exists():
+            claude_path = path
+            break
+
     if claude_path:
         logger.info(f"✓ Claude CLI found at: {claude_path}")
         try:
-            result = subprocess.run(["claude", "--version"], capture_output=True, text=True, timeout=5)
+            result = subprocess.run([claude_path, "--version"], capture_output=True, text=True, timeout=5)
             if result.returncode == 0:
                 logger.info(f"✓ Claude CLI version: {result.stdout.strip()}")
                 from app.services.llm.clinical_analyzer import ClinicalAnalyzer
@@ -73,6 +85,7 @@ def _get_llm_provider():
         except Exception as e:
             logger.error(f"Claude CLI exists but failed to run: {e}")
 
+    logger.error(f"Claude CLI not found. Searched paths: {search_paths}")
     raise RuntimeError(
         "Claude CLI is required for call analysis. "
         "Please ensure Claude CLI is installed and available in PATH. "
