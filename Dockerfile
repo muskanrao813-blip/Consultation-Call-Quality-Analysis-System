@@ -6,34 +6,43 @@ RUN npm install -g @anthropic-ai/claude-cli && \
     claude --version
 
 
-FROM node:20-alpine AS node-base
+# Stage 1: Build Claude CLI in official Node image
+FROM node:20 AS claude-builder
 
-# Install Claude CLI in Node base image
-RUN npm install -g @anthropic-ai/claude-cli
+RUN npm install -g @anthropic-ai/claude-cli && \
+    which claude && \
+    claude --version && \
+    echo "Claude CLI built successfully"
 
 
+# Stage 2: Python runtime with Claude copied from Stage 1
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install Node.js runtime only (no npm needed after install)
+# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     ca-certificates \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y nodejs \
-    && npm install -g npm@latest \
-    && npm install -g @anthropic-ai/claude-cli 2>&1 && \
-    echo "=== Verifying Claude installation ===" && \
-    which claude && \
-    claude --version && \
-    echo "=== Claude CLI successfully installed ===" \
-    || echo "=== Warning: Claude CLI installation may have failed ===" && \
-    rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/*
 
-# Set proper PATH for Node global bins
-ENV PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH}"
+# Copy Node.js and npm from node:20 image
+COPY --from=node:20 /usr/local/bin/node /usr/local/bin/node
+COPY --from=node:20 /usr/local/bin/npm /usr/local/bin/npm
+COPY --from=node:20 /usr/local/bin/npx /usr/local/bin/npx
+COPY --from=node:20 /usr/local/lib/node_modules /usr/local/lib/node_modules
+
+# Copy Claude CLI from builder stage
+COPY --from=claude-builder /usr/local/bin/claude /usr/local/bin/claude
+COPY --from=claude-builder /usr/local/lib/node_modules/@anthropic-ai /usr/local/lib/node_modules/@anthropic-ai
+
+# Verify Claude is available
+RUN which claude && claude --version && echo "✓ Claude CLI ready"
+
+# Set PATH
+ENV PATH="/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH}"
+ENV NODE_PATH="/usr/local/lib/node_modules"
 
 # Copy requirements
 COPY requirements.txt .
