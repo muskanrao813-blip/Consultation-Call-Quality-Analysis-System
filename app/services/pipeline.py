@@ -56,16 +56,28 @@ def _get_transcription_provider():
     return MockTranscriptionProvider
 
 def _get_llm_provider():
-    """Lazy load LLM provider - using Claude API via Python SDK."""
-    import os
+    """Lazy load LLM provider - Claude CLI is required."""
+    import subprocess
+    import shutil
 
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY environment variable is required for Claude API analysis")
+    # Check if claude is available in PATH
+    claude_path = shutil.which("claude")
+    if claude_path:
+        logger.info(f"✓ Claude CLI found at: {claude_path}")
+        try:
+            result = subprocess.run(["claude", "--version"], capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                logger.info(f"✓ Claude CLI version: {result.stdout.strip()}")
+                from app.services.llm.clinical_analyzer import ClinicalAnalyzer
+                return ClinicalAnalyzer
+        except Exception as e:
+            logger.error(f"Claude CLI exists but failed to run: {e}")
 
-    logger.info("✓ Using Claude API via Python SDK (anthropic package)")
-    from app.services.llm.clinical_analyzer import ClinicalAnalyzer
-    return ClinicalAnalyzer
+    raise RuntimeError(
+        "Claude CLI is required for call analysis. "
+        "Please ensure Claude CLI is installed and available in PATH. "
+        "Install with: npm install -g @anthropic-ai/claude-cli"
+    )
 
 
 class PipelineStageError(Exception):
