@@ -213,7 +213,25 @@ def test_claude():
     import os
     import pathlib
 
-    # Search in many possible locations
+    results = {
+        "status": "checking",
+        "claude_available": False,
+        "search_results": {},
+        "diagnostics": {}
+    }
+
+    # 1. Check PATH environment variable
+    current_path = os.environ.get("PATH", "NOT SET")
+    results["diagnostics"]["current_path"] = current_path[:300] if current_path != "NOT SET" else current_path
+
+    # 2. Try which command
+    try:
+        which_result = subprocess.run(["which", "claude"], capture_output=True, text=True, timeout=5)
+        results["diagnostics"]["which_claude"] = which_result.stdout.strip() or "not found"
+    except Exception as e:
+        results["diagnostics"]["which_claude"] = f"error: {str(e)}"
+
+    # 3. Search in many possible locations
     search_locations = [
         shutil.which("claude"),
         "/usr/local/bin/claude",
@@ -221,50 +239,53 @@ def test_claude():
         "/opt/render/.npm-global/bin/claude",
         "/root/.npm-global/bin/claude",
         "/home/render/.npm-global/bin/claude",
+        "/usr/local/lib/node_modules/.bin/claude",
     ]
 
     claude_path = None
     for loc in search_locations:
-        if loc and pathlib.Path(loc).exists():
-            claude_path = loc
-            break
+        if loc:
+            exists = pathlib.Path(loc).exists()
+            results["search_results"][loc] = "exists" if exists else "not found"
+            if exists and not claude_path:
+                claude_path = loc
 
-    if not claude_path:
-        return {
-            "status": "warning",
-            "message": "Claude CLI not found - using fallback heuristic scoring",
-            "claude_available": False,
-            "fallback_active": True,
-            "searched_locations": search_locations,
-            "current_path_env": os.environ.get("PATH", "NOT SET")[:200],
-            "note": "System is working with heuristic scoring. Gemini transcription + metrics-based scores."
-        }
-
+    # 4. Try npm to find global bin path
     try:
-        result = subprocess.run([claude_path, "--version"], capture_output=True, text=True, timeout=5)
-        if result.returncode == 0:
-            return {
-                "status": "success",
-                "message": result.stdout.strip(),
-                "claude_available": True,
-                "claude_path": claude_path
-            }
-        else:
-            return {
-                "status": "warning",
-                "message": f"Claude CLI found but returned exit code {result.returncode}",
-                "claude_available": False,
-                "fallback_active": True,
-                "claude_path": claude_path
-            }
+        npm_result = subprocess.run(["npm", "config", "get", "prefix"], capture_output=True, text=True, timeout=5)
+        npm_prefix = npm_result.stdout.strip()
+        npm_claude = os.path.join(npm_prefix, "bin", "claude")
+        results["diagnostics"]["npm_prefix"] = npm_prefix
+        results["search_results"][npm_claude] = "exists" if pathlib.Path(npm_claude).exists() else "not found"
+        if pathlib.Path(npm_claude).exists() and not claude_path:
+            claude_path = npm_claude
     except Exception as e:
-        return {
-            "status": "warning",
-            "message": f"Claude CLI error ({type(e).__name__}), using fallback",
-            "claude_available": False,
-            "fallback_active": True,
-            "claude_path": claude_path
-        }
+        results["diagnostics"]["npm_prefix_error"] = str(e)
+
+    # 5. If found, test it
+    if claude_path:
+        results["claude_path"] = claude_path
+        try:
+            version_result = subprocess.run([claude_path, "--version"], capture_output=True, text=True, timeout=5)
+            if version_result.returncode == 0:
+                results["status"] = "success"
+                results["claude_available"] = True
+                results["message"] = version_result.stdout.strip()
+                return results
+            else:
+                results["status"] = "error"
+                results["message"] = f"Exit code {version_result.returncode}: {version_result.stderr}"
+                results["diagnostics"]["version_command_error"] = version_result.stderr
+        except Exception as e:
+            results["status"] = "error"
+            results["message"] = f"{type(e).__name__}: {str(e)}"
+            results["diagnostics"]["version_command_exception"] = str(e)
+    else:
+        results["status"] = "not_found"
+        results["message"] = "Claude CLI not found in any location"
+        results["fallback_analyzer"] = "Using Gemini API for QA analysis"
+
+    return results
 
 
 @app.get("/")

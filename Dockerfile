@@ -6,24 +6,34 @@ RUN npm install -g @anthropic-ai/claude-cli && \
     claude --version
 
 
+FROM node:20-alpine AS node-base
+
+# Install Claude CLI in Node base image
+RUN npm install -g @anthropic-ai/claude-cli
+
+
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install Node.js and npm
+# Install Node.js runtime only (no npm needed after install)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     ca-certificates \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/*
+    && npm install -g npm@latest \
+    && npm install -g @anthropic-ai/claude-cli 2>&1 && \
+    echo "=== Verifying Claude installation ===" && \
+    which claude && \
+    claude --version && \
+    echo "=== Claude CLI successfully installed ===" \
+    || echo "=== Warning: Claude CLI installation may have failed ===" && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install Claude CLI - try simple global install first
-RUN npm install -g @anthropic-ai/claude-cli
-
-# Try to verify - don't fail if it doesn't work (we have fallback)
-RUN which claude && claude --version || echo "WARNING: Claude CLI not in PATH, using fallback"
+# Set proper PATH for Node global bins
+ENV PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH}"
 
 # Copy requirements
 COPY requirements.txt .
