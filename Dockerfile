@@ -9,10 +9,19 @@ RUN npm install -g @anthropic-ai/claude-cli && \
 # Stage 1: Build Claude CLI in official Node image
 FROM node:20 AS claude-builder
 
-RUN npm install -g @anthropic-ai/claude-cli && \
+RUN echo "=== npm version ===" && \
+    npm --version && \
+    echo "=== node version ===" && \
+    node --version && \
+    echo "=== npm config ===" && \
+    npm config list && \
+    echo "=== installing Claude CLI ===" && \
+    npm install -g @anthropic-ai/claude-cli 2>&1 | tee /tmp/npm-install.log && \
+    echo "=== verifying installation ===" && \
     which claude && \
     claude --version && \
-    echo "Claude CLI built successfully"
+    echo "=== Claude CLI built successfully ===" || \
+    (echo "=== INSTALLATION FAILED ===" && cat /tmp/npm-install.log && exit 1)
 
 
 # Stage 2: Python runtime with Claude copied from Stage 1
