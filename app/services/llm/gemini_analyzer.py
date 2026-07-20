@@ -43,38 +43,9 @@ class GeminiAnalyzer:
             client = self._get_client()
             transcript_text = self._build_transcript_text(transcript_segments)
 
-            # Build simple, reliable prompt
-            prompt = f"""Analyze this dietician call and return ONLY JSON (no markdown, no text):
-
-TRANSCRIPT:
-{transcript_text}
-
-METRICS: Duration {metrics.get('duration_seconds', 0)}s, Dietician {metrics.get('dietician_talk_ratio_pct', 0)}%, Patient {metrics.get('patient_talk_ratio_pct', 0)}%
-
-Return valid JSON:
-{{
-  "scores": {{
-    "greeting": <0-100>,
-    "empathy": <0-100>,
-    "compliance": <0-100>,
-    "technical": <0-100>
-  }},
-  "sop_compliance": {{
-    "compliant": <true/false>,
-    "compliance_score": <0-100>,
-    "violations": [
-      {{"check": "Health Understanding First", "violated": <bool>, "evidence": "text"}}
-    ]
-  }},
-  "qa_alerts": [
-    {{"title": "Alert", "description": "Details", "severity": "critical"}}
-  ],
-  "insights": {{
-    "whatWentWell": ["Specific positive example"],
-    "areasForImprovement": ["Specific improvement area"],
-    "summary": "Overall assessment"
-  }}
-}}"""
+            # Use the EXACT clinical analysis prompt (same as Claude)
+            from app.services.llm.clinical_prompt import create_clinical_analysis_prompt
+            prompt = create_clinical_analysis_prompt(transcript_text, metrics, patient_condition or "General Health")
 
             logger.info(f"[Gemini] Calling Gemini for call {call_id}")
             response = client.models.generate_content(
@@ -169,42 +140,93 @@ Return valid JSON:
         return "\n".join(lines) if lines else "No transcript available"
 
     def _generate_heuristic_scores(self, metrics: Dict) -> Dict:
-        """Generate scores based on metrics when Gemini fails."""
-        logger.info("[Gemini] Generating heuristic scores")
+        """Generate scores based on metrics when Gemini fails - using clinical rubric."""
+        logger.info("[Gemini] Generating heuristic scores using clinical rubric")
 
         duration = metrics.get("duration_seconds", 0)
         dietician_talk = metrics.get("dietician_talk_ratio_pct", 0)
         patient_talk = metrics.get("patient_talk_ratio_pct", 0)
         interruptions = metrics.get("interruption_count", 0)
-        latency = metrics.get("avg_response_latency_seconds", 0)
         time_to_plan = metrics.get("time_to_first_plan_mention_seconds", 0)
 
-        # Calculate scores (0-100)
-        greeting_score = min(100, 50 + (duration / 6))
-        empathy_score = min(100, 40 + (patient_talk / 0.3) - (interruptions * 5))
-        compliance_score = min(100, 50 + (duration / 6) + (20 if time_to_plan > 120 else 0))
-        technical_score = min(100, 50 + (dietician_talk / 0.5))
+        # Strict clinical scoring (0-100)
+        # Greeting: Professional opening quality
+        greeting_score = 40  # Base (strict: need clear intro)
+        if duration > 60:
+            greeting_score += 15  # Adequate time
+        if interruptions <= 2:
+            greeting_score += 15  # Controlled conversation
+        if dietician_talk < 70:
+            greeting_score += 20  # Space for patient
 
+        # Empathy: Patient-centered care
+        empathy_score = 30  # Base (strict: need active listening)
+        if patient_talk >= 25:
+            empathy_score += 25  # Adequate patient voice
+        if interruptions <= 3:
+            empathy_score += 20  # Respectful listening
+        if duration >= 180:
+            empathy_score += 15  # Time for exploration
+
+        # Compliance: SOP adherence (CRITICAL)
+        compliance_score = 20  # Base (strict: SOP violations common)
+        if time_to_plan >= 180:
+            compliance_score += 25  # Health understanding first
+        if duration >= 300:
+            compliance_score += 20  # Adequate assessment
+        if patient_talk >= 30:
+            compliance_score += 20  # Barrier discussion
+        if dietician_talk < 60:
+            compliance_score += 15  # Not self-promotion heavy
+
+        # Technical: Action plan quality
+        technical_score = 30  # Base (strict: need medical soundness)
+        if duration >= 240:
+            technical_score += 25  # Adequate explanation time
+        if time_to_plan >= 150:
+            technical_score += 20  # Well-structured plan
+        if dietician_talk >= 40:
+            technical_score += 25  # Clear recommendations
+
+        # Violations (based on clinical rubric)
         violations = []
-        if time_to_plan > 300:
+        if time_to_plan < 120:
             violations.append({
                 "check": "Health Understanding First",
                 "violated": True,
-                "evidence": "Plan mentioned late in call"
+                "evidence": "Plan mentioned too early (< 2min) - insufficient health assessment"
             })
         if patient_talk < 25:
             violations.append({
                 "check": "Patient Education",
                 "violated": True,
-                "evidence": "Patient talking time too low"
+                "evidence": "Patient talking < 25% - insufficient discussion"
+            })
+        if duration < 180:
+            violations.append({
+                "check": "Informed Consent",
+                "violated": True,
+                "evidence": "Call too short (< 3min) to establish understanding"
             })
 
         qa_alerts = []
-        if compliance_score < 60:
+        if time_to_plan < 120:
             qa_alerts.append({
-                "title": "Low Compliance Score",
-                "description": f"Compliance score is {compliance_score}",
+                "title": "Rushed Diagnosis",
+                "description": "Diet plan mentioned too early without adequate health assessment",
+                "severity": "critical"
+            })
+        if patient_talk < 25:
+            qa_alerts.append({
+                "title": "Low Patient Engagement",
+                "description": "Patient talking time < 25% indicates one-sided conversation",
                 "severity": "warning"
+            })
+        if compliance_score < 50:
+            qa_alerts.append({
+                "title": "SOP Compliance Risk",
+                "description": f"Multiple compliance gaps detected (score: {int(compliance_score)})",
+                "severity": "critical"
             })
 
         return {
@@ -222,13 +244,14 @@ Return valid JSON:
             "qa_alerts": qa_alerts,
             "insights": {
                 "whatWentWell": [
-                    f"Call duration: {duration}s",
-                    f"Patient engagement: {patient_talk}%"
+                    f"Patient engagement: {patient_talk}%" if patient_talk >= 25 else "Conversation structure",
+                    f"Call duration: {duration}s" if duration >= 300 else "Time management needed"
                 ],
                 "areasForImprovement": [
-                    "Improve health assessment before recommendations",
-                    "Increase patient talking time" if patient_talk < 30 else "Good patient engagement"
+                    "Health understanding must come BEFORE recommendations" if time_to_plan < 120 else "Good assessment sequence",
+                    "Increase patient talking time" if patient_talk < 25 else "",
+                    "Provide more detailed plan explanation" if technical_score < 60 else ""
                 ],
-                "summary": f"Call analysis: {int((greeting_score + empathy_score + compliance_score + technical_score) / 4)}/100 overall"
+                "summary": f"Clinical assessment: Compliance needs improvement (focus on health assessment first)" if compliance_score < 70 else f"Call meets clinical standards"
             }
         }
