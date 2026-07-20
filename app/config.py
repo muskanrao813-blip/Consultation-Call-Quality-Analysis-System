@@ -1,19 +1,14 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 from pathlib import Path
-import os
-
-# Load .env file explicitly
-from dotenv import load_dotenv
-load_dotenv()
 
 
 class Settings(BaseSettings):
-    database_url: str = os.getenv("DATABASE_URL", "postgresql://postgres:37VZGdWJd1dfj67p@db.xiaaswamelxolzuewhdf.supabase.co:5432/postgres")
+    database_url: str = "postgresql://postgres:37VZGdWJd1dfj67p@db.xiaaswamelxolzuewhdf.supabase.co:5432/postgres"
     redis_url: str = "redis://localhost:6379/0"
     google_application_credentials: str = ""
     gcs_bucket_name: str = "dietician-qa-audio"
-    gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
+    gemini_api_key: str = ""
     llm_provider: str = "gemini"
     transcription_provider: str = "google_stt"
     celery_concurrency: int = 10
@@ -21,6 +16,7 @@ class Settings(BaseSettings):
 
     class Config:
         case_sensitive = False
+        env_file = ".env"
 
 
 @lru_cache()
