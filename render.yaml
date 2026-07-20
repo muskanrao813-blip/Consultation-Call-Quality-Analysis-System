@@ -1,13 +1,13 @@
 services:
   - type: web
-    name: dietician-qa-api
-    env: docker
+    name: consultation-call-quality-analysis
+    runtime: docker
     plan: free
-    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
     envVars:
       - key: GEMINI_API_KEY
         sync: false
-      - key: GROQ_API_KEY
+      - key: DATABASE_URL
         sync: false
-      - key: GOOGLE_API_KEY
-        sync: false
+      - key: PYTHONUNBUFFERED
+        value: "1"
