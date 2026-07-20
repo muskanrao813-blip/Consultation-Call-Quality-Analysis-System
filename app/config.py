@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 class Settings(BaseSettings):
-    database_url: str = "postgresql://postgres:37VZGdWJd1dfj67p@db.xiaaswamelxolzuewhdf.supabase.co:5432/postgres"
+    database_url: str = "postgresql://neondb_owner:npg_RnjMpJ4DsKY7@ep-icy-tree-af8719ti.c-2.us-west-2.aws.neon.tech/neondb?sslmode=require"
     redis_url: str = "redis://localhost:6379/0"
     google_application_credentials: str = ""
     gcs_bucket_name: str = "dietician-qa-audio"
