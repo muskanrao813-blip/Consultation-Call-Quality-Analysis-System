@@ -122,30 +122,32 @@ Return valid JSON:
         insights = response.get("insights", {})
         qa_alerts = response.get("qa_alerts", [])
 
+        # IMPORTANT: dimension_scores keys must match compute_weighted_score expectations
+        # Keys: greeting, empathy, compliance, technical (NOT with _rapport, _communication, etc suffixes)
         return {
             "dimension_scores": {
-                "greeting_rapport": {
-                    "score": scores.get("greeting", 0) / 10,  # Convert 0-100 to 0-10
+                "greeting": {
+                    "score": scores.get("greeting", 0),  # Already 0-100
                     "evidence": [],
                     "sub_criteria_met": {}
                 },
-                "empathy_communication": {
-                    "score": scores.get("empathy", 0) / 10,
+                "empathy": {
+                    "score": scores.get("empathy", 0),
                     "evidence": [],
                     "sub_criteria_met": {}
                 },
-                "compliance_sop": {
-                    "score": scores.get("compliance", 0) / 10,
+                "compliance": {
+                    "score": scores.get("compliance", 0),
                     "evidence": sop.get("violations", []),
                     "sub_criteria_met": {}
                 },
-                "technical_quality": {
-                    "score": scores.get("technical", 0) / 10,
+                "technical": {
+                    "score": scores.get("technical", 0),
                     "evidence": [],
                     "sub_criteria_met": {}
                 },
                 "clinical_safety": {
-                    "score": 8.0,  # Default high
+                    "score": 85.0,  # Default high (0-100 scale)
                     "evidence": [],
                     "red_flag_detected": False,
                     "handled_appropriately": True
