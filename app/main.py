@@ -203,7 +203,7 @@ def check_recent_call():
                 "transcript": {
                     "exists": transcript is not None,
                     "provider": transcript.provider if transcript else None,
-                    "text_length": len(transcript.raw_transcript) if transcript and transcript.raw_transcript else 0,
+                    "text_length": len(str(transcript.raw_transcript_json)) if transcript and transcript.raw_transcript_json else 0,
                     "diarized_segments": len(transcript.diarized_segments) if transcript and transcript.diarized_segments else 0
                 },
                 "metrics": {
