@@ -175,6 +175,81 @@ def debug_process_call(call_id: str):
         return {"status": "error", "message": str(e)}
 
 
+@app.get("/api/debug/dietician/{dietician_name}")
+def check_dietician_calls(dietician_name: str):
+    """Check all calls for a specific dietician"""
+    try:
+        from app.db.session import SessionLocal
+        from app.db import models
+
+        db = SessionLocal()
+        try:
+            # Find dietician
+            dietician = db.query(models.Dietician).filter(
+                models.Dietician.name.ilike(f"%{dietician_name}%")
+            ).first()
+
+            if not dietician:
+                return {"status": "error", "message": f"Dietician '{dietician_name}' not found"}
+
+            # Get all calls for this dietician
+            calls = db.query(models.Call).filter(
+                models.Call.dietician_id == dietician.id
+            ).order_by(models.Call.created_at.desc()).all()
+
+            call_summaries = []
+            for call in calls:
+                metrics = db.query(models.CallMetrics).filter(models.CallMetrics.call_id == call.id).first()
+                scores = db.query(models.RubricScore).filter(models.RubricScore.call_id == call.id).all()
+                qa_flags = db.query(models.QAFlag).filter(models.QAFlag.call_id == call.id).all()
+
+                dimension_scores = {s.dimension: s.score for s in scores}
+                overall = scores[0].overall_weighted_score if scores else 0
+
+                call_summaries.append({
+                    "call_id": str(call.id),
+                    "appointment_id": call.appointment_id,
+                    "patient_name": call.patient_name,
+                    "status": str(call.status),
+                    "duration_seconds": metrics.duration_seconds if metrics else 0,
+                    "patient_talk_pct": metrics.patient_talk_ratio_pct if metrics else 0,
+                    "time_to_plan_sec": metrics.time_to_first_plan_mention_seconds if metrics else 0,
+                    "scores": {
+                        "greeting": dimension_scores.get("greeting", 0),
+                        "empathy": dimension_scores.get("empathy", 0),
+                        "compliance": dimension_scores.get("compliance", 0),
+                        "technical": dimension_scores.get("technical", 0),
+                        "overall_weighted": overall
+                    },
+                    "critical_flags": [f.flag_type for f in qa_flags if f.triggered]
+                })
+
+            # Calculate averages
+            if call_summaries:
+                avg_score = sum(c["scores"]["overall_weighted"] for c in call_summaries) / len(call_summaries)
+                avg_compliance = sum(c["scores"]["compliance"] for c in call_summaries) / len(call_summaries)
+            else:
+                avg_score = 0
+                avg_compliance = 0
+
+            return {
+                "dietician": dietician.name,
+                "total_calls": len(call_summaries),
+                "average_overall_score": round(avg_score, 1),
+                "average_compliance_score": round(avg_compliance, 1),
+                "calls": call_summaries
+            }
+        finally:
+            db.close()
+    except Exception as e:
+        import traceback
+        return {
+            "status": "error",
+            "message": str(e),
+            "traceback": traceback.format_exc()[:300]
+        }
+
+
 @app.get("/api/debug/call/{call_id}")
 def check_specific_call(call_id: str):
     """Check a specific call by ID"""
