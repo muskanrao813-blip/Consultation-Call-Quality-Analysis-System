@@ -440,20 +440,52 @@ async def list_dieticians(db: Session = Depends(get_db)):
             )
 
             # Build aggregated QA alerts: each unique title + how many calls it appeared in
-            aggregated_alerts = []
-            # Alert types that are ALWAYS critical (patient safety issues)
-            critical_alert_types = {
-                "Missing Discovery",
-                "Poor Adherence Counselling",
-                "Forced Consultation",
-                "Incomplete Consultation/Early Termination",
-                "Dismissive Clinical Approach",
-                "Generic Diet Plan Delivery",
-                "Incomplete Health Assessment & Lack of Personalization",
+            # Deduplicate alerts by grouping similar ones and keeping most important
+            alert_groups = {
+                "Missing Discovery": ["Missing Discovery"],
+                "No Health Assessment First": ["Incomplete Health Assessment & Lack of Personalization", "Generic Communication Protocol"],
+                "Generic Plan Delivered": ["Generic Diet Plan Delivery", "Generic Advice Protocol"],
+                "Forced Consultation": ["Forced Consultation", "Incomplete Consultation/Early Termination"],
+                "Poor Adherence Counselling": ["Poor Adherence Counselling"],
+                "Poor Communication": ["Poor Call Structure and Professionalism", "Poor Communication Flow and Lack of Follow-up Plan", "Poor Professionalism and Confusion"],
+                "Dismissive Clinical Approach": ["Dismissive Clinical Approach"],
             }
 
-            for title, info in sorted(alert_call_map.items(), key=lambda x: -len(x[1]["call_ids"])):
-                call_count = len(info["call_ids"])
+            # Aggregate by group: keep most frequent alert from each group
+            deduped_alerts = {}
+            for group_name, alert_titles in alert_groups.items():
+                # Find the most frequent alert in this group
+                best_alert = None
+                best_count = 0
+                for title in alert_titles:
+                    if title in alert_call_map:
+                        count = len(alert_call_map[title]["call_ids"])
+                        if count > best_count:
+                            best_count = count
+                            best_alert = (title, alert_call_map[title], count)
+
+                # Use group name if we found an alert, otherwise skip
+                if best_alert:
+                    title, info, call_count = best_alert
+                    deduped_alerts[group_name] = {
+                        "detail": info["detail"],
+                        "call_count": call_count,
+                        "original_title": title,  # Track original for context
+                    }
+
+            # Build final alert list with deduplication
+            aggregated_alerts = []
+            critical_alert_types = {
+                "Missing Discovery",
+                "No Health Assessment First",
+                "Generic Plan Delivered",
+                "Forced Consultation",
+                "Poor Adherence Counselling",
+                "Dismissive Clinical Approach",
+            }
+
+            for title, info in sorted(deduped_alerts.items(), key=lambda x: -x[1]["call_count"]):
+                call_count = info["call_count"]
 
                 # Determine severity: safety-critical issues are ALWAYS critical
                 if title in critical_alert_types:
@@ -473,6 +505,7 @@ async def list_dieticians(db: Session = Depends(get_db)):
                     "totalCalls": total_calls,
                     "callFrequency": f"{call_count}/{total_calls} calls",
                     "severity": severity,
+                    "original_alert": info["original_title"],  # Show what alert this represents
                 })
 
             result.append({
