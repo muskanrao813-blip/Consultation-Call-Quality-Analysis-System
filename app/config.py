@@ -9,7 +9,7 @@ load_dotenv()
 
 
 class Settings(BaseSettings):
-    database_url: str = "sqlite:///./test.db"
+    database_url: str = os.getenv("DATABASE_URL", "postgresql://postgres:37VZGdWJd1dfj67p@db.xiaaswamelxolzuewhdf.supabase.co:5432/postgres")
     redis_url: str = "redis://localhost:6379/0"
     google_application_credentials: str = ""
     gcs_bucket_name: str = "dietician-qa-audio"
