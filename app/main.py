@@ -175,6 +175,63 @@ def debug_process_call(call_id: str):
         return {"status": "error", "message": str(e)}
 
 
+@app.get("/api/debug/call/{call_id}")
+def check_specific_call(call_id: str):
+    """Check a specific call by ID"""
+    try:
+        from app.db.session import SessionLocal
+        from app.db import models
+        import uuid
+
+        db = SessionLocal()
+        try:
+            call_uuid = uuid.UUID(call_id)
+            call = db.query(models.Call).filter(models.Call.id == call_uuid).first()
+
+            if not call:
+                return {"status": "error", "message": f"Call {call_id} not found"}
+
+            # Get all related data
+            transcript = db.query(models.Transcript).filter(models.Transcript.call_id == call.id).first()
+            metrics = db.query(models.CallMetrics).filter(models.CallMetrics.call_id == call.id).first()
+            scores = db.query(models.RubricScore).filter(models.RubricScore.call_id == call.id).all()
+            qa_flags = db.query(models.QAFlag).filter(models.QAFlag.call_id == call.id).all()
+
+            transcript_text = ""
+            if transcript and transcript.raw_transcript_json:
+                raw_json = transcript.raw_transcript_json
+                transcript_text = raw_json.get("text", "")[:2000]  # First 2000 chars
+
+            return {
+                "call_id": str(call.id),
+                "status": str(call.status),
+                "appointment_id": call.appointment_id,
+                "error_message": call.error_message,
+                "transcript_preview": transcript_text,
+                "metrics": {
+                    "duration_seconds": metrics.duration_seconds if metrics else None,
+                    "dietician_talk_ratio": metrics.dietician_talk_ratio_pct if metrics else None,
+                    "patient_talk_ratio": metrics.patient_talk_ratio_pct if metrics else None,
+                    "interruption_count": metrics.interruption_count if metrics else None,
+                    "avg_response_latency": metrics.avg_response_latency_seconds if metrics else None,
+                    "time_to_first_plan": metrics.time_to_first_plan_mention_seconds if metrics else None,
+                },
+                "scores": {
+                    "dimensions": [{"name": s.dimension, "score": s.score, "overall_weighted": s.overall_weighted_score} for s in scores],
+                    "qa_flags": [{"type": f.flag_type, "triggered": f.triggered, "detail": f.detail} for f in qa_flags]
+                }
+            }
+        finally:
+            db.close()
+    except Exception as e:
+        import traceback
+        return {
+            "status": "error",
+            "message": str(e),
+            "traceback": traceback.format_exc()[:300]
+        }
+
+
 @app.get("/api/debug/check-recent-call")
 def check_recent_call():
     """Check the most recent call and show what happened"""
