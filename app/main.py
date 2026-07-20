@@ -175,6 +175,66 @@ def debug_process_call(call_id: str):
         return {"status": "error", "message": str(e)}
 
 
+@app.get("/api/debug/check-recent-call")
+def check_recent_call():
+    """Check the most recent call and show what happened"""
+    try:
+        from app.db.session import SessionLocal
+        from app.db import models
+
+        db = SessionLocal()
+        try:
+            # Get most recent call
+            call = db.query(models.Call).order_by(models.Call.created_at.desc()).first()
+
+            if not call:
+                return {"status": "error", "message": "No calls found"}
+
+            # Get all related data
+            transcript = db.query(models.Transcript).filter(models.Transcript.call_id == call.id).first()
+            metrics = db.query(models.CallMetrics).filter(models.CallMetrics.call_id == call.id).first()
+            scores = db.query(models.RubricScore).filter(models.RubricScore.call_id == call.id).all()
+            qa_flags = db.query(models.QAFlag).filter(models.QAFlag.call_id == call.id).all()
+
+            return {
+                "call_id": str(call.id),
+                "status": str(call.status),
+                "error_message": call.error_message,
+                "transcript": {
+                    "exists": transcript is not None,
+                    "provider": transcript.provider if transcript else None,
+                    "text_length": len(transcript.raw_transcript) if transcript and transcript.raw_transcript else 0,
+                    "diarized_segments": len(transcript.diarized_segments) if transcript and transcript.diarized_segments else 0
+                },
+                "metrics": {
+                    "exists": metrics is not None,
+                    "duration": metrics.duration_seconds if metrics else None,
+                    "dietician_talk": metrics.dietician_talk_ratio_pct if metrics else None,
+                    "patient_talk": metrics.patient_talk_ratio_pct if metrics else None
+                },
+                "scores": {
+                    "count": len(scores),
+                    "dimensions": [s.dimension for s in scores],
+                    "values": {s.dimension: s.score for s in scores},
+                    "overall": scores[0].overall_weighted_score if scores else None,
+                    "raw_response_sample": str(scores[0].raw_llm_response)[:200] if scores and scores[0].raw_llm_response else None
+                },
+                "qa_flags": {
+                    "count": len(qa_flags),
+                    "flags": [{"type": f.flag_type, "triggered": f.triggered, "detail": f.detail} for f in qa_flags]
+                }
+            }
+        finally:
+            db.close()
+    except Exception as e:
+        import traceback
+        return {
+            "status": "error",
+            "message": str(e),
+            "traceback": traceback.format_exc()[:300]
+        }
+
+
 @app.get("/api/debug/test-gemini-raw")
 def test_gemini_raw():
     """Test raw Gemini response to see exact output"""
