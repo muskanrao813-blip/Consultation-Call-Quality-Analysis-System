@@ -140,8 +140,8 @@ class GeminiAnalyzer:
         return "\n".join(lines) if lines else "No transcript available"
 
     def _generate_heuristic_scores(self, metrics: Dict) -> Dict:
-        """Generate scores based on metrics when Gemini fails - using clinical rubric."""
-        logger.info("[Gemini] Generating heuristic scores using clinical rubric")
+        """Generate scores based on metrics when Gemini fails - STRICT clinical rubric."""
+        logger.info("[Gemini] Generating STRICT heuristic scores")
 
         duration = metrics.get("duration_seconds", 0)
         dietician_talk = metrics.get("dietician_talk_ratio_pct", 0)
@@ -149,44 +149,45 @@ class GeminiAnalyzer:
         interruptions = metrics.get("interruption_count", 0)
         time_to_plan = metrics.get("time_to_first_plan_mention_seconds", 0)
 
-        # Strict clinical scoring (0-100)
-        # Greeting: Professional opening quality
-        greeting_score = 40  # Base (strict: need clear intro)
-        if duration > 60:
-            greeting_score += 15  # Adequate time
-        if interruptions <= 2:
-            greeting_score += 15  # Controlled conversation
-        if dietician_talk < 70:
-            greeting_score += 20  # Space for patient
+        # STRICT scoring: Max caps per dimension
+        # Greeting: Professional opening (max 25/100)
+        greeting_score = 0
+        if duration >= 60:
+            greeting_score = 10
+        if duration >= 120:
+            greeting_score = 15
+        if duration >= 300 and interruptions <= 2:
+            greeting_score = 25
 
-        # Empathy: Patient-centered care
-        empathy_score = 30  # Base (strict: need active listening)
-        if patient_talk >= 25:
-            empathy_score += 25  # Adequate patient voice
-        if interruptions <= 3:
-            empathy_score += 20  # Respectful listening
-        if duration >= 180:
-            empathy_score += 15  # Time for exploration
+        # Empathy: Patient engagement (max 30/100)
+        empathy_score = 0
+        if patient_talk >= 20:
+            empathy_score = 10
+        if patient_talk >= 30 and interruptions <= 3:
+            empathy_score = 20
+        if patient_talk >= 40 and duration >= 300:
+            empathy_score = 30
 
-        # Compliance: SOP adherence (CRITICAL)
-        compliance_score = 20  # Base (strict: SOP violations common)
-        if time_to_plan >= 180:
-            compliance_score += 25  # Health understanding first
-        if duration >= 300:
-            compliance_score += 20  # Adequate assessment
-        if patient_talk >= 30:
-            compliance_score += 20  # Barrier discussion
-        if dietician_talk < 60:
-            compliance_score += 15  # Not self-promotion heavy
+        # Compliance: SOP adherence (CRITICAL - max 25/100, very hard to achieve)
+        compliance_score = 0
+        # MUST have health assessment FIRST (time_to_plan >= 180)
+        if time_to_plan >= 180 and patient_talk >= 25:
+            compliance_score = 10
+        # MUST have adequate discussion
+        if time_to_plan >= 240 and patient_talk >= 30 and duration >= 300:
+            compliance_score = 18
+        # Perfect execution
+        if time_to_plan >= 300 and patient_talk >= 35 and duration >= 600:
+            compliance_score = 25
 
-        # Technical: Action plan quality
-        technical_score = 30  # Base (strict: need medical soundness)
-        if duration >= 240:
-            technical_score += 25  # Adequate explanation time
-        if time_to_plan >= 150:
-            technical_score += 20  # Well-structured plan
-        if dietician_talk >= 40:
-            technical_score += 25  # Clear recommendations
+        # Technical: Plan quality (max 25/100)
+        technical_score = 0
+        if time_to_plan >= 150 and duration >= 240:
+            technical_score = 10
+        if time_to_plan >= 240 and duration >= 480:
+            technical_score = 20
+        if time_to_plan >= 300 and duration >= 600 and dietician_talk >= 45:
+            technical_score = 25
 
         # Violations (based on clinical rubric)
         violations = []
