@@ -97,7 +97,8 @@ Return valid JSON:
 
                 result = json.loads(response_text)
                 logger.info("[Gemini] JSON parsed successfully")
-                return result
+                # Convert to pipeline-expected format
+                return self._normalize_response_format(result)
 
             except json.JSONDecodeError as e:
                 logger.warning(f"[Gemini] JSON parse failed: {e}")
@@ -108,6 +109,52 @@ Return valid JSON:
         except Exception as e:
             logger.error(f"[Gemini] Error: {type(e).__name__}: {str(e)}")
             return self._generate_heuristic_scores(metrics)
+
+    def _normalize_response_format(self, response: Dict) -> Dict:
+        """Convert Gemini response to pipeline-expected format."""
+        # If already in correct format, return as-is
+        if "dimension_scores" in response:
+            return response
+
+        # Convert from scores format to dimension_scores format
+        scores = response.get("scores", {})
+        sop = response.get("sop_compliance", {})
+        insights = response.get("insights", {})
+        qa_alerts = response.get("qa_alerts", [])
+
+        return {
+            "dimension_scores": {
+                "greeting_rapport": {
+                    "score": scores.get("greeting", 0) / 10,  # Convert 0-100 to 0-10
+                    "evidence": [],
+                    "sub_criteria_met": {}
+                },
+                "empathy_communication": {
+                    "score": scores.get("empathy", 0) / 10,
+                    "evidence": [],
+                    "sub_criteria_met": {}
+                },
+                "compliance_sop": {
+                    "score": scores.get("compliance", 0) / 10,
+                    "evidence": sop.get("violations", []),
+                    "sub_criteria_met": {}
+                },
+                "technical_quality": {
+                    "score": scores.get("technical", 0) / 10,
+                    "evidence": [],
+                    "sub_criteria_met": {}
+                },
+                "clinical_safety": {
+                    "score": 8.0,  # Default high
+                    "evidence": [],
+                    "red_flag_detected": False,
+                    "handled_appropriately": True
+                }
+            },
+            "insights": insights,
+            "qa_alerts": qa_alerts,
+            "sop_compliance": sop
+        }
 
     def _build_transcript_text(self, segments: List[Dict]) -> str:
         """Build readable transcript from segments."""
