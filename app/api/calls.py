@@ -441,8 +441,30 @@ async def list_dieticians(db: Session = Depends(get_db)):
 
             # Build aggregated QA alerts: each unique title + how many calls it appeared in
             aggregated_alerts = []
+            # Alert types that are ALWAYS critical (patient safety issues)
+            critical_alert_types = {
+                "Missing Discovery",
+                "Poor Adherence Counselling",
+                "Forced Consultation",
+                "Incomplete Consultation/Early Termination",
+                "Dismissive Clinical Approach",
+                "Generic Diet Plan Delivery",
+                "Incomplete Health Assessment & Lack of Personalization",
+            }
+
             for title, info in sorted(alert_call_map.items(), key=lambda x: -len(x[1]["call_ids"])):
                 call_count = len(info["call_ids"])
+
+                # Determine severity: safety-critical issues are ALWAYS critical
+                if title in critical_alert_types:
+                    severity = "critical"
+                elif call_count == total_calls:
+                    severity = "critical"
+                elif call_count > 1:
+                    severity = "warning"
+                else:
+                    severity = "info"
+
                 aggregated_alerts.append({
                     "id": title,
                     "title": title,
@@ -450,7 +472,7 @@ async def list_dieticians(db: Session = Depends(get_db)):
                     "callCount": call_count,
                     "totalCalls": total_calls,
                     "callFrequency": f"{call_count}/{total_calls} calls",
-                    "severity": "critical" if call_count == total_calls else "warning" if call_count > 1 else "info",
+                    "severity": severity,
                 })
 
             result.append({
